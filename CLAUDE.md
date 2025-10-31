@@ -8,7 +8,7 @@ This is a fully implemented **agentic-rag** system - a retrieval-augmented gener
 
 ## Development Environment
 
-- **Python**: 3.14.0 (specified in `.python-version`)
+- **Python**: 3.12.0 (specified in `.python-version`)
 - **Package Manager**: uv (modern Python package manager, version 0.9.2)
 - **Web Framework**: FastAPI
 - **Platform**: Windows-based development
@@ -23,10 +23,9 @@ uv venv                    # Create new virtual environment
 
 ### Running Applications
 ```bash
-uv run python main.py      # Start the RAG API server (default: http://localhost:8000)
-uv run python main.py --dev # Development mode with auto-reload
-uv run python main.py --port 8080 # Custom port
-uv run python main.py --data-dir ./my-data # Custom data directory
+uv run python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000  # Start the RAG API server with auto-reload
+uv run python -m uvicorn app.main:app --host 0.0.0.0 --port 8080           # Custom port without reload
+# Note: The original `uv run python main.py` commands are not applicable due to project restructure
 ```
 
 ### Dependency Management
@@ -40,46 +39,50 @@ uv lock                   # Update lock file with latest versions
 
 ```
 agentic-rag/
-├── src/                     # Core RAG system modules
+├── app/                     # FastAPI application modules
 │   ├── __init__.py         # Package initialization
-│   ├── ingestion.py        # Document ingestion and Japanese semantic chunking
-│   ├── embeddings.py       # Voyage AI 3.5 embedding configuration
-│   ├── vector_store.py     # FAISS vector store management
-│   ├── query_engine.py     # RAG query engine with LLM integration
-│   └── api.py              # FastAPI endpoints and web interface
+│   ├── main.py             # FastAPI application entry point
+│   ├── dto/                # Data transfer objects
+│   │   └── __init__.py
+│   ├── rag/                # RAG system modules (to be implemented)
+│   │   └── __init__.py
+│   ├── routers/            # API route definitions
+│   │   └── __init__.py
+│   └── services/           # Business logic services
+│       └── __init__.py
 ├── data/                   # Document storage directory
 ├── vector_store/           # FAISS index storage (created automatically)
-├── main.py                 # FastAPI server entry point
 ├── .env                    # Environment variables (API keys)
+├── .gitignore              # Git ignore rules
+├── CLAUDE.md               # Project documentation
 ├── pyproject.toml          # Project configuration and dependencies
-└── uv.lock                 # Locked dependency versions
+├── README.md               # Project readme
+├── uv.lock                 # Locked dependency versions
+└── .python-version         # Python version specification
 ```
 
-## Implemented Architecture
+## Project Architecture
 
-This project implements a complete **agentic RAG system** with the following components:
+This project is designed to implement a complete **agentic RAG system** with the following planned components:
 
-### Core RAG Components
-- **Document Processing** (`src/ingestion.py`): Multi-format file ingestion with Japanese semantic chunking
-- **Embedding Generation** (`src/embeddings.py`): Voyage AI 3.5 embeddings with API key management
-- **Vector Database** (`src/vector_store.py`): FAISS index with multiple index types (flat, IVF, HNSW)
-- **Retrieval Mechanisms** (`src/query_engine.py`): Semantic search with configurable similarity thresholds
+### Core RAG Components (To Be Implemented)
+- **Document Processing** (`app/rag/ingestion.py`): Multi-format file ingestion with Japanese semantic chunking
+- **Embedding Generation** (`app/rag/embeddings.py`): Voyage AI 3.5 embedding configuration
+- **Vector Database** (`app/rag/vector_store.py`): FAISS index with multiple index types (flat, IVF, HNSW)
+- **Retrieval Mechanisms** (`app/rag/query_engine.py`): Semantic search with configurable similarity thresholds
 
-### Agent Framework
+### Agent Framework (To Be Implemented)
 - **LLM Integration**: OpenAI integration with fallback to basic retrieval
 - **Query Engine**: Configurable RAG pipeline with context generation
 - **Memory Management**: Persistent vector storage with metadata
 
-### API Layer
-- **FastAPI Endpoints** (`src/api.py`): Complete RESTful API with documentation
-  - `POST /query` - RAG queries with LLM responses
-  - `POST /similarity` - Pure similarity search
-  - `POST /ingest` - Background document ingestion
-  - `POST /upload` - Single document upload
-  - `GET /status` - System status and statistics
-  - `POST /rebuild` - System rebuild functionality
+### API Layer (Basic Implementation)
+- **FastAPI Application** (`app/main.py`): Basic FastAPI setup with health endpoints
+  - `GET /` - Welcome message
+  - `GET /health` - Health check endpoint
+  - **Planned endpoints**: `/query`, `/similarity`, `/ingest`, `/upload`, `/status`, `/rebuild`
 
-### Data Processing
+### Data Processing (To Be Implemented)
 - **Ingestion Pipelines**: Automated processing of Excel, PDF, Word, text files
 - **Japanese Optimization**: Semantic chunking with Japanese sentence separators (。！？)
 - **Knowledge Base Management**: CRUD operations with metadata tracking
@@ -87,13 +90,13 @@ This project implements a complete **agentic RAG system** with the following com
 
 ## Development Notes
 
-- **Current Status**: Fully implemented RAG system with production-ready API
+- **Current Status**: Basic FastAPI application with health endpoints. RAG functionality needs to be implemented.
 - **API Documentation**: Auto-generated at `/docs` endpoint when server is running
-- **Testing**: Individual modules have test functions when run directly
-- **Environment Setup**: Requires `VOYAGE_API_KEY` in `.env` file (template provided)
+- **Project Status**: Infrastructure is ready for RAG system implementation
+- **Environment Setup**: Will require `VOYAGE_API_KEY` in `.env` file for RAG functionality
 - **Optional**: `OPENAI_API_KEY` for enhanced LLM responses (fallback to basic retrieval)
-- **Data Source**: Place documents in `/data` folder - supports Excel, PDF, Word, text files
-- **Vector Storage**: Automatic FAISS index creation in `/vector_store` directory
+- **Data Source**: Place documents in `/data` folder - will support Excel, PDF, Word, text files
+- **Vector Storage**: Will create automatic FAISS index in `/vector_store` directory
 
 ## Key Dependencies
 
@@ -112,7 +115,7 @@ This project implements a complete **agentic RAG system** with the following com
 - **llama-index**: Production-ready RAG framework with extensive integrations
 - **Voyage AI 3.5**: State-of-the-art embeddings optimized for semantic search
 - **FAISS**: Efficient vector similarity search from Facebook AI
-- **Python 3.14**: Latest Python version with modern language features
+- **Python 3.12**: Latest Python version with modern language features
 
 ## Quick Start Guide
 
@@ -136,13 +139,13 @@ This project implements a complete **agentic RAG system** with the following com
 
 4. **Start the server**:
    ```bash
-   uv run python main.py
+   uv run python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
 5. **Access the API**:
    - API Interface: http://localhost:8000/docs
    - Health Check: http://localhost:8000/health
-   - System Status: http://localhost:8000/status
+   - Welcome: http://localhost:8000/
 
 ## API Usage Examples
 
@@ -167,17 +170,15 @@ curl -X POST "http://localhost:8000/upload" \
 
 ## Development and Testing
 
-Individual modules can be tested directly:
+Currently the application has basic FastAPI functionality:
 ```bash
-# Test document ingestion
-uv run python src/ingestion.py
+# Test the basic API endpoints
+curl http://localhost:8000/
+curl http://localhost:8000/health
 
-# Test embeddings configuration
-uv run python src/embeddings.py
-
-# Test vector store
-uv run python src/vector_store.py
-
-# Test query engine
-uv run python src/query_engine.py
+# Future testing (when RAG modules are implemented):
+# uv run python app/rag/ingestion.py
+# uv run python app/rag/embeddings.py
+# uv run python app/rag/vector_store.py
+# uv run python app/rag/query_engine.py
 ```
