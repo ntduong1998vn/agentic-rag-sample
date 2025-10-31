@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class JapaneseSentenceSplitter(TokenTextSplitter):
+class JapaneseSentenceSplitter:
     """
     Custom text splitter optimized for Japanese text with semantic awareness
     """
@@ -39,11 +39,12 @@ class JapaneseSentenceSplitter(TokenTextSplitter):
         Initialize Japanese sentence splitter
 
         Args:
-            chunk_size: Maximum size of each chunk in tokens
-            chunk_overlap: Number of tokens to overlap between chunks
+            chunk_size: Maximum size of each chunk in characters
+            chunk_overlap: Number of characters to overlap between chunks
             separators: List of sentence separators
         """
-        super().__init__(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
 
         # Japanese sentence separators and semantic break points
         if separators is None:
@@ -151,6 +152,12 @@ class DocumentIngestionService:
             data_path: Path to the data directory containing documents
         """
         self.data_path = Path(data_path)
+
+        # Create data directory if it doesn't exist
+        if not self.data_path.exists():
+            logger.info(f"Creating data directory: {self.data_path}")
+            self.data_path.mkdir(parents=True, exist_ok=True)
+
         self.embedding_service = get_embedding_service()
         self.vector_store_service = get_vector_store_service()
 
@@ -162,7 +169,6 @@ class DocumentIngestionService:
             ".csv": CSVReader(),
             ".epub": EpubReader(),
             ".md": MarkdownReader(),
-            ".txt": SimpleDirectoryReader(input_files=[""]),
             # Image files
             ".jpg": ImageReader(),
             ".jpeg": ImageReader(),

@@ -6,7 +6,7 @@ from datetime import datetime
 from app.rag.embeddings import get_embedding_service, EmbeddingService
 from app.rag.vector_store import get_vector_store_service, VectorStoreService
 from app.rag.ingestion import get_ingestion_service, DocumentIngestionService
-from app.services.ingestion_service import get_ingestion_business_service, IngestionBusinessService
+from app.dto.ingestion import DocumentInfo, IngestionStatus, IngestionResponse, DocumentListResponse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,38 +25,9 @@ class RAGService:
         self.embedding_service = get_embedding_service()
         self.vector_store_service = get_vector_store_service()
         self.ingestion_service = get_ingestion_service()
-        self.ingestion_business_service = get_ingestion_business_service()
         logger.info("Initialized RAGService")
 
-    async def initialize(self) -> bool:
-        """
-        Initialize all RAG components
-
-        Returns:
-            True if initialization successful, False otherwise
-        """
-        try:
-            logger.info("Initializing RAG service components")
-
-            # Test embedding service
-            embedding_test = self.embedding_service.test_connection()
-            if not embedding_test:
-                logger.error("Embedding service test failed")
-                return False
-
-            # Initialize vector store (this will load or create index)
-            vector_store = self.vector_store_service.get_vector_store()
-
-            # Get initial statistics
-            stats = self.vector_store_service.get_stats()
-            logger.info(f"RAG service initialized. Vector store stats: {stats}")
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to initialize RAG service: {str(e)}")
-            return False
-
+    
     async def ingest_documents(self, recursive: bool = True) -> Dict[str, Any]:
         """
         Ingest documents from the data directory
@@ -68,19 +39,84 @@ class RAGService:
             Dictionary with ingestion results
         """
         try:
-            logger.info("Starting document ingestion through RAG service")
+            logger.info("Starting business layer ingestion process")
 
-            result = await self.ingestion_business_service.ingest_data_directory(recursive=recursive)
+            # Call the core ingestion service
+            ingestion_result = await self.ingestion_service.ingest_directory(recursive=recursive)
 
-            return result.dict()
+            if not ingestion_result["success"]:
+                response = IngestionResponse(
+                    success=False,
+                    message=ingestion_result["message"],
+                    status=IngestionStatus(
+                        total_files=0,
+                        processed_files=0,
+                        failed_files=0,
+                        skipped_files=0,
+                        start_time=datetime.now(),
+                        is_complete=True,
+                        errors=[ingestion_result["message"]]
+                    )
+                )
+                return response.dict()
+
+            # Extract statistics
+            stats = ingestion_result["stats"]
+            processing_results = ingestion_result.get("processing_results", [])
+
+            # Create ingestion status
+            status = IngestionStatus(
+                total_files=stats["total_files"],
+                processed_files=stats["processed_files"],
+                failed_files=stats["failed_files"],
+                skipped_files=stats["skipped_files"],
+                start_time=stats["start_time"],
+                end_time=stats.get("end_time"),
+                is_complete=True,
+                errors=[r.get("error_message") for r in processing_results if r.get("error_message")]
+            )
+
+            # Create document info objects
+            documents = []
+            for result in processing_results:
+                if result.get("status") == "success":
+                    doc_info = DocumentInfo(
+                        file_name=result.get("file_name", "unknown"),
+                        file_path=result.get("file_path", "unknown"),
+                        file_size=result.get("file_size", 0),
+                        file_type=result.get("file_type", "unknown"),
+                        page_count=result.get("page_count"),  # May not be available for all formats
+                        chunk_count=result.get("chunk_count", 0),
+                        processed_at=result.get("modified_at", datetime.now()),
+                        status=result.get("status", "unknown"),
+                        error_message=result.get("error_message")
+                    )
+                    documents.append(doc_info)
+
+            response = IngestionResponse(
+                success=True,
+                message=ingestion_result["message"],
+                status=status,
+                documents=documents
+            )
+            return response.dict()
 
         except Exception as e:
-            logger.error(f"RAG service ingestion failed: {str(e)}")
-            return {
-                "success": False,
-                "message": f"RAG ingestion failed: {str(e)}",
-                "error": str(e)
-            }
+            logger.error(f"Business layer ingestion failed: {str(e)}")
+            response = IngestionResponse(
+                success=False,
+                message=f"Ingestion failed: {str(e)}",
+                status=IngestionStatus(
+                    total_files=0,
+                    processed_files=0,
+                    failed_files=1,
+                    skipped_files=0,
+                    start_time=datetime.now(),
+                    is_complete=True,
+                    errors=[str(e)]
+                )
+            )
+            return response.dict()
 
     async def query_documents(self,
                              query: str,
@@ -148,71 +184,46 @@ class RAGService:
             Dictionary with document list
         """
         try:
-            logger.info("Retrieving document list through RAG service")
-
-            result = await self.ingestion_business_service.get_processed_documents()
-
-            return result.dict()
-
-        except Exception as e:
-            logger.error(f"Failed to get document list: {str(e)}")
-            return {
-                "success": False,
-                "message": f"Failed to get document list: {str(e)}",
-                "total_documents": 0,
-                "documents": []
-            }
-
-    def get_system_status(self) -> Dict[str, Any]:
-        """
-        Get comprehensive system status
-
-        Returns:
-            Dictionary with system status
-        """
-        try:
-            logger.info("Getting RAG system status")
-
-            # Get ingestion business service status
-            ingestion_status = self.ingestion_business_service.get_system_status()
+            logger.info("Retrieving processed documents list")
 
             # Get vector store statistics
             vector_stats = self.vector_store_service.get_stats()
 
-            # Get supported file types
-            supported_types = self.ingestion_service.get_supported_file_types()
+            # For now, we'll extract document info from the vector store metadata
+            # In a more complete implementation, you might have a separate document registry
+            documents = []
+            total_documents = vector_stats["total_documents"]
 
-            return {
-                "success": True,
-                "status": "healthy",
-                "timestamp": datetime.now().isoformat(),
-                "components": {
-                    "embedding_service": {
-                        "status": "healthy" if self.embedding_service.test_connection() else "unhealthy",
-                        "model": self.embedding_service.model_name,
-                        "dimension": self.embedding_service.get_embedding_dimension()
-                    },
-                    "vector_store": {
-                        "status": "healthy",
-                        "stats": vector_stats
-                    },
-                    "ingestion_service": {
-                        "status": "healthy",
-                        "supported_file_types": supported_types
-                    }
-                },
-                "overall_status": ingestion_status.get("status", "unknown")
-            }
+            if total_documents > 0:
+                # Get detailed information from vector store
+                # Note: This is a simplified implementation
+                # In production, you'd want to maintain a separate document registry
+
+                # Since we don't have direct access to document metadata through the current interface,
+                # we'll create a placeholder response with the available stats
+                message = f"Found {total_documents} document chunks in the vector store"
+            else:
+                message = "No documents found in the vector store"
+
+            response = DocumentListResponse(
+                success=True,
+                message=message,
+                total_documents=total_documents,
+                documents=documents  # Would populate with actual document info in complete implementation
+            )
+            return response.dict()
 
         except Exception as e:
-            logger.error(f"Failed to get system status: {str(e)}")
-            return {
-                "success": False,
-                "status": "error",
-                "error": str(e),
-                "timestamp": datetime.now().isoformat()
-            }
+            logger.error(f"Failed to retrieve processed documents: {str(e)}")
+            response = DocumentListResponse(
+                success=False,
+                message=f"Failed to retrieve documents: {str(e)}",
+                total_documents=0,
+                documents=[]
+            )
+            return response.dict()
 
+    
     def clear_all_documents(self) -> Dict[str, Any]:
         """
         Clear all documents from the vector store
@@ -221,93 +232,23 @@ class RAGService:
             Dictionary with operation results
         """
         try:
-            logger.info("Clearing all documents through RAG service")
+            logger.info("Clearing vector store")
 
-            result = self.ingestion_business_service.clear_vector_store()
+            self.vector_store_service.clear_index()
 
-            return result
-
-        except Exception as e:
-            logger.error(f"Failed to clear documents: {str(e)}")
             return {
-                "success": False,
-                "message": f"Failed to clear documents: {str(e)}"
-            }
-
-    async def health_check(self) -> Dict[str, Any]:
-        """
-        Perform a comprehensive health check
-
-        Returns:
-            Dictionary with health check results
-        """
-        try:
-            logger.info("Performing RAG service health check")
-
-            health_status = {
                 "success": True,
-                "status": "healthy",
-                "timestamp": datetime.now().isoformat(),
-                "checks": {}
+                "message": "Vector store cleared successfully"
             }
-
-            # Check embedding service
-            embedding_healthy = self.embedding_service.test_connection()
-            health_status["checks"]["embedding_service"] = {
-                "status": "healthy" if embedding_healthy else "unhealthy",
-                "details": "Voyage AI connection test" + (" passed" if embedding_healthy else " failed")
-            }
-
-            # Check vector store
-            try:
-                vector_stats = self.vector_store_service.get_stats()
-                health_status["checks"]["vector_store"] = {
-                    "status": "healthy",
-                    "details": f"Vector store accessible with {vector_stats['total_documents']} documents"
-                }
-            except Exception as e:
-                health_status["checks"]["vector_store"] = {
-                    "status": "unhealthy",
-                    "details": f"Vector store error: {str(e)}"
-                }
-
-            # Check data directory
-            try:
-                data_path = self.ingestion_service.data_path
-                if data_path.exists():
-                    health_status["checks"]["data_directory"] = {
-                        "status": "healthy",
-                        "details": f"Data directory accessible: {data_path}"
-                    }
-                else:
-                    health_status["checks"]["data_directory"] = {
-                        "status": "warning",
-                        "details": f"Data directory does not exist: {data_path}"
-                    }
-            except Exception as e:
-                health_status["checks"]["data_directory"] = {
-                    "status": "unhealthy",
-                    "details": f"Data directory error: {str(e)}"
-                }
-
-            # Overall status
-            all_healthy = all(
-                check["status"] == "healthy"
-                for check in health_status["checks"].values()
-            )
-            health_status["status"] = "healthy" if all_healthy else "degraded"
-
-            return health_status
 
         except Exception as e:
-            logger.error(f"Health check failed: {str(e)}")
+            logger.error(f"Failed to clear vector store: {str(e)}")
             return {
                 "success": False,
-                "status": "error",
-                "timestamp": datetime.now().isoformat(),
-                "error": str(e)
+                "message": f"Failed to clear vector store: {str(e)}"
             }
 
+    
 
 # Global RAG service instance
 _rag_service: Optional[RAGService] = None
@@ -326,16 +267,3 @@ def get_rag_service() -> RAGService:
     return _rag_service
 
 
-async def initialize_rag_service() -> bool:
-    """
-    Initialize the global RAG service
-
-    Returns:
-        True if initialization successful, False otherwise
-    """
-    try:
-        service = get_rag_service()
-        return await service.initialize()
-    except Exception as e:
-        logger.error(f"Failed to initialize global RAG service: {str(e)}")
-        return False

@@ -113,31 +113,7 @@ class EmbeddingService:
         # Voyage 3.5 produces 1024-dimensional embeddings
         return 1024
 
-    def test_connection(self) -> bool:
-        """
-        Test the connection to Voyage AI API
-
-        Returns:
-            True if connection is successful, False otherwise
-        """
-        try:
-            model = self.get_embedding_model()
-            test_text = "テスト接続"  # "Test connection" in Japanese
-
-            # Test synchronous embedding
-            embedding = model.get_text_embedding(test_text)
-
-            if embedding and len(embedding) > 0:
-                logger.info("Voyage AI API connection test successful")
-                return True
-            else:
-                logger.error("Voyage AI API connection test failed: Empty embedding")
-                return False
-
-        except Exception as e:
-            logger.error(f"Voyage AI API connection test failed: {str(e)}")
-            return False
-
+  
 
 # Global embedding service instance
 _embedding_service: Optional[EmbeddingService] = None
@@ -154,18 +130,3 @@ def get_embedding_service() -> EmbeddingService:
     if _embedding_service is None:
         _embedding_service = EmbeddingService()
     return _embedding_service
-
-
-def initialize_embeddings() -> bool:
-    """
-    Initialize the embedding service and test connection
-
-    Returns:
-        True if initialization successful, False otherwise
-    """
-    try:
-        service = get_embedding_service()
-        return service.test_connection()
-    except Exception as e:
-        logger.error(f"Failed to initialize embedding service: {str(e)}")
-        return False

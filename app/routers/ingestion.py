@@ -106,84 +106,8 @@ async def get_processed_documents():
         )
 
 
-@router.get("/status", summary="Get ingestion system status")
-async def get_ingestion_status():
-    """
-    Get the current status of the RAG ingestion system.
-
-    Returns information about:
-    - Vector store statistics
-    - Supported file types
-    - Service health status
-    - Component initialization status
-    """
-    try:
-        logger.info("Received request for ingestion system status")
-
-        # Get RAG service
-        rag_service = get_rag_service()
-
-        # Get system status
-        status = rag_service.get_system_status()
-
-        if status.get("success"):
-            return status
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail=status.get("error", "Failed to get system status")
-            )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Status endpoint error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error while getting status: {str(e)}"
-        )
 
 
-@router.get("/health", summary="Health check for ingestion service")
-async def health_check():
-    """
-    Perform a comprehensive health check of the RAG ingestion system.
-
-    Checks the status of:
-    - Voyage AI embedding service connection
-    - FAISS vector store accessibility
-    - Data directory availability
-    - Overall system health
-    """
-    try:
-        logger.info("Received health check request")
-
-        # Get RAG service
-        rag_service = get_rag_service()
-
-        # Perform health check
-        health_result = await rag_service.health_check()
-
-        # Return appropriate HTTP status based on health
-        if health_result.get("success") and health_result.get("status") == "healthy":
-            return health_result
-        elif health_result.get("success") and health_result.get("status") == "degraded":
-            # Still return 200 but with degraded status
-            return health_result
-        else:
-            raise HTTPException(
-                status_code=503,
-                detail=health_result.get("error", "Service unhealthy")
-            )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Health check endpoint error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error during health check: {str(e)}"
-        )
 
 
 # Additional utility endpoints

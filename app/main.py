@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # RAG service imports
 from app.routers.ingestion import router as ingestion_router
-from app.services.rag_service import initialize_rag_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,20 +18,6 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     logger.info("Starting Agentic RAG API...")
-
-    try:
-        # Initialize RAG service components
-        logger.info("Initializing RAG service components...")
-        rag_initialized = await initialize_rag_service()
-
-        if rag_initialized:
-            logger.info("RAG service initialized successfully")
-        else:
-            logger.warning("RAG service initialization failed - some features may not work")
-
-    except Exception as e:
-        logger.error(f"Failed to initialize RAG service: {str(e)}")
-
     logger.info("Agentic RAG API startup complete")
 
     yield
@@ -131,8 +116,6 @@ async def api_info():
         "endpoints": {
             "ingestion": "/ingest",
             "documents": "/ingest/documents",
-            "status": "/ingest/status",
-            "health": "/ingest/health",
             "stats": "/ingest/stats"
         }
     }
