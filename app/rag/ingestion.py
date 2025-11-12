@@ -15,128 +15,16 @@ from llama_index.readers.file import (
     MarkdownReader,
     ImageReader,
 )
-from llama_index.core.text_splitter import TokenTextSplitter
-
 # Local imports
 from app.rag.embeddings import get_embedding_service
 from app.rag.vector_store import get_vector_store_service
+from app.rag.semantic_splitter import create_semantic_splitter
+from app.config.logging_config import get_logger
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
-class JapaneseSentenceSplitter:
-    """
-    Custom text splitter optimized for Japanese text with semantic awareness
-    """
-
-    def __init__(self,
-                 chunk_size: int = 512,
-                 chunk_overlap: int = 50,
-                 separators: Optional[List[str]] = None):
-        """
-        Initialize Japanese sentence splitter
-
-        Args:
-            chunk_size: Maximum size of each chunk in characters
-            chunk_overlap: Number of characters to overlap between chunks
-            separators: List of sentence separators
-        """
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
-
-        # Japanese sentence separators and semantic break points
-        if separators is None:
-            self.separators = [
-                "。",  # Japanese period
-                "！",  # Japanese exclamation mark
-                "？",  # Japanese question mark
-                "．",  # Fullwidth period
-                "\n\n",  # Paragraph break
-                "\n",    # Line break
-                "、",    # Japanese comma
-                "，",    # Fullwidth comma
-                "：",    # Japanese colon
-                "；",    # Japanese semicolon
-            ]
-        else:
-            self.separators = separators
-
-    def split_text(self, text: str) -> List[str]:
-        """
-        Split text into chunks using Japanese semantic rules
-
-        Args:
-            text: Text to split
-
-        Returns:
-            List of text chunks
-        """
-        if not text.strip():
-            return []
-
-        # Preprocess text
-        text = text.strip()
-        chunks = []
-
-        # Find all natural break points
-        break_positions = [0]  # Start of text
-
-        for separator in self.separators:
-            pos = 0
-            while True:
-                pos = text.find(separator, pos)
-                if pos == -1:
-                    break
-                break_positions.append(pos + len(separator))
-                pos += len(separator)
-
-        # Add end of text
-        break_positions.append(len(text))
-
-        # Remove duplicates and sort
-        break_positions = sorted(list(set(break_positions)))
-
-        # Create segments based on break positions
-        segments = []
-        for i in range(len(break_positions) - 1):
-            start = break_positions[i]
-            end = break_positions[i + 1]
-            segment = text[start:end].strip()
-            if segment:
-                segments.append(segment)
-
-        # Combine segments into chunks respecting chunk_size
-        current_chunk = ""
-        for segment in segments:
-            # If adding this segment exceeds chunk_size, start new chunk
-            if len(current_chunk) + len(segment) > self.chunk_size and current_chunk:
-                chunks.append(current_chunk.strip())
-                current_chunk = segment
-            else:
-                current_chunk += segment
-
-        # Add final chunk if not empty
-        if current_chunk.strip():
-            chunks.append(current_chunk.strip())
-
-        # Ensure chunks are not too small (merge very small chunks)
-        final_chunks = []
-        temp_chunk = ""
-
-        for chunk in chunks:
-            if len(chunk) < self.chunk_size // 4 and temp_chunk:  # Very small chunk
-                temp_chunk += chunk
-            else:
-                if temp_chunk:
-                    final_chunks.append(temp_chunk)
-                temp_chunk = chunk
-
-        if temp_chunk:
-            final_chunks.append(temp_chunk)
-
-        return final_chunks
 
 
 class DocumentIngestionService:
@@ -178,11 +66,14 @@ class DocumentIngestionService:
             ".tiff": ImageReader(),
         }
 
-        # Japanese sentence splitter
-        self.text_splitter = JapaneseSentenceSplitter(
-            chunk_size=512,
-            chunk_overlap=50
-        )
+        # Semantic Japanese splitter using Voyage AI embeddings
+        try:
+            self.text_splitter = create_semantic_splitter()
+            logger.info("Successfully initialized semantic text splitter")
+        except Exception as e:
+            error_msg = f"Failed to initialize semantic splitter: {str(e)}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
 
         logger.info(f"Initialized DocumentIngestionService with data path: {self.data_path}")
 
@@ -271,22 +162,33 @@ class DocumentIngestionService:
             for doc in documents:
                 doc.metadata = {**doc.metadata, **file_metadata}
 
-            # Split documents into chunks using Japanese semantic splitter
-            chunked_documents = []
-            for doc in documents:
-                chunks = self.text_splitter.split_text(doc.text)
-                for i, chunk in enumerate(chunks):
+            # Split documents into chunks using semantic splitter
+            try:
+                # Use semantic splitter which returns TextNode objects
+                semantic_nodes = self.text_splitter.split_documents(documents)
+
+                # Convert TextNode objects back to Document objects for compatibility
+                chunked_documents = []
+                for i, node in enumerate(semantic_nodes):
                     chunk_doc = Document(
-                        text=chunk,
-                        doc_id=f"{file_path.stem}_chunk_{i}",
+                        text=node.get_text(),
+                        doc_id=f"{file_path.stem}_semantic_chunk_{i}",
                         metadata={
-                            **doc.metadata,
+                            **node.metadata,
                             "chunk_index": i,
-                            "total_chunks": len(chunks),
-                            "chunk_text": chunk
+                            "total_chunks": len(semantic_nodes),
+                            "chunk_text": node.get_text(),
+                            "chunking_method": "semantic_voyage"
                         }
                     )
                     chunked_documents.append(chunk_doc)
+
+                logger.info(f"Semantic splitting created {len(semantic_nodes)} chunks from {len(documents)} documents")
+
+            except Exception as e:
+                error_msg = f"Semantic splitting failed for {file_path}: {str(e)}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
 
             logger.info(f"Processed {file_path}: {len(documents)} documents -> {len(chunked_documents)} chunks")
 

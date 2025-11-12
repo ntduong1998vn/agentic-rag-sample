@@ -1,14 +1,15 @@
-import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # RAG service imports
 from app.routers.ingestion import router as ingestion_router
+from app.routers.chat import router as chat_router
+from app.config.logging_config import initialize_logging, get_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Initialize centralized logging
+initialize_logging()
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -36,17 +37,21 @@ app = FastAPI(
 
     * **Japanese Document Processing**: Semantic chunking optimized for Japanese text
     * **Voyage AI 3.5 Embeddings**: State-of-the-art text embeddings
-    * **FAISS Vector Storage**: Efficient similarity search
+    * **ChromaDB Vector Storage**: Docker-containerized vector database with similarity search
     * **Multi-format Support**: PDF, Word, Excel, text, images, and more
+    * **Conversational AI**: Chat with documents using Google Gemini 2.5 Flash-Lite
+    * **Stateless Processing**: Each query processed independently without session memory
+    * **Streaming Responses**: Real-time response streaming for better UX
     * **RESTful API**: Clean API design with comprehensive documentation
 
     ## Endpoints
 
+    * **Chat**: `/chat` - Q&A with document retrieval and LLM generation
     * **Ingestion**: Process documents from `/data` directory
     * **Document Management**: List and manage processed documents
     * **Health Checks**: System monitoring and status reporting
     """,
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan
 )
 
@@ -61,6 +66,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(ingestion_router)
+app.include_router(chat_router)
 
 # Root endpoint
 @app.get("/")
@@ -70,11 +76,12 @@ async def root():
     """
     return {
         "message": "Agentic RAG API is running",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "description": "Retrieval-augmented generation system with agentic capabilities",
         "endpoints": {
             "docs": "/docs",
             "health": "/health",
+            "chat": "/chat",
             "ingestion": "/ingest"
         }
     }
@@ -88,7 +95,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "Agentic RAG API",
-        "version": "1.0.0"
+        "version": "1.1.0"
     }
 
 # API information endpoint
@@ -99,13 +106,16 @@ async def api_info():
     """
     return {
         "name": "Agentic RAG API",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "description": "Retrieval-augmented generation system with agentic capabilities",
         "features": [
             "Japanese semantic document chunking",
             "Voyage AI 3.5 embeddings",
-            "FAISS vector storage",
+            "ChromaDB vector storage",
             "Multi-format document processing",
+            "Conversational AI with Google Gemini 2.5 Flash-Lite",
+            "Stateless chat processing",
+            "Streaming response support",
             "RESTful API design"
         ],
         "supported_file_types": [
@@ -114,6 +124,7 @@ async def api_info():
             ".bmp", ".tiff", ".epub"
         ],
         "endpoints": {
+            "chat": "/chat",
             "ingestion": "/ingest",
             "documents": "/ingest/documents",
             "stats": "/ingest/stats"

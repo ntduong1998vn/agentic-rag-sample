@@ -11,3 +11,8 @@ wheels/
 
 .env
 vector_store/
+
+# Log files
+logs/
+*.log
+*.log.*

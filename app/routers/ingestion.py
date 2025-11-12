@@ -1,4 +1,3 @@
-import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel, Field
@@ -6,10 +5,10 @@ from pydantic import BaseModel, Field
 # Local imports
 from app.services.rag_service import get_rag_service
 from app.dto.ingestion import IngestionResponse, DocumentListResponse
+from app.config.logging_config import get_logger
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Create FastAPI router
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
@@ -104,10 +103,6 @@ async def get_processed_documents():
             status_code=500,
             detail=f"Internal server error while retrieving documents: {str(e)}"
         )
-
-
-
-
 
 
 # Additional utility endpoints

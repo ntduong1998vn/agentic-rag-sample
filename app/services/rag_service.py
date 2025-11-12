@@ -1,4 +1,3 @@
-import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
@@ -7,10 +6,10 @@ from app.rag.embeddings import get_embedding_service, EmbeddingService
 from app.rag.vector_store import get_vector_store_service, VectorStoreService
 from app.rag.ingestion import get_ingestion_service, DocumentIngestionService
 from app.dto.ingestion import DocumentInfo, IngestionStatus, IngestionResponse, DocumentListResponse
+from app.config.logging_config import get_logger
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class RAGService:

@@ -3,11 +3,10 @@ from typing import List, Optional
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.embeddings.voyageai import VoyageEmbedding
 from dotenv import load_dotenv
-import logging
+from app.config.logging_config import get_logger
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Load environment variables
 load_dotenv()

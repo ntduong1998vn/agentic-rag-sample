@@ -1,121 +1,70 @@
-import pickle
+"""
+Vector store module for managing ChromaDB storage.
+
+This module provides a service layer for document storage and retrieval using ChromaDB.
+"""
+
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import logging
-import faiss
-import numpy as np
+from chromadb import Collection
+from langchain_chroma import Chroma
 from llama_index.core.schema import Document, NodeWithScore
-from llama_index.vector_stores.faiss import FaissVectorStore
 from app.rag.embeddings import get_embedding_service
+from app.config.logging_config import get_logger
+from app.config.chroma_config import get_or_create_collection
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class VectorStoreService:
-    """Service for managing FAISS vector storage"""
+    """Service for managing ChromaDB vector storage"""
 
-    def __init__(self,
-                 vector_store_path: str = "vector_store",
-                 index_type: str = "flat",
-                 dimension: Optional[int] = None):
+    def __init__(self, collection_name: Optional[str] = None):
         """
         Initialize the vector store service
 
         Args:
-            vector_store_path: Path to store vector indices
-            index_type: Type of FAISS index ("flat", "ivf", "hnsw")
-            dimension: Embedding dimension (auto-detected if None)
+            collection_name: Name of the Chroma collection (uses env var if None)
         """
-        self.vector_store_path = Path(vector_store_path)
-        self.index_type = index_type.lower()
         self.embedding_service = get_embedding_service()
-        self.dimension = dimension or self.embedding_service.get_embedding_dimension()
+        self.collection_name = collection_name
+        self._chroma_client = None
+        self._collection = None
+        self._vector_store = None
 
-        # Create directory if it doesn't exist
-        self.vector_store_path.mkdir(parents=True, exist_ok=True)
+        logger.info("Initialized VectorStoreService with ChromaDB")
 
-        # Paths for index files
-        self.index_file = self.vector_store_path / f"{self.index_type}_index.faiss"
-        self.metadata_file = self.vector_store_path / f"{self.index_type}_metadata.pkl"
-
-        self._faiss_store: Optional[FaissVectorStore] = None
-        self._faiss_index: Optional[faiss.Index] = None
-        self._document_metadata: List[Dict[str, Any]] = []
-
-        logger.info(f"Initialized VectorStoreService with index_type: {self.index_type}")
-
-    def _create_faiss_index(self) -> faiss.Index:
+    def _get_chroma_collection(self) -> Collection:
         """
-        Create a new FAISS index based on the specified type
+        Get or create the ChromaDB collection
 
         Returns:
-            FAISS index instance
+            Collection: ChromaDB collection instance
         """
-        if self.index_type == "flat":
-            # Simple exact search
-            index = faiss.IndexFlatIP(self.dimension)
-            logger.info("Created FAISS Flat index for exact search")
+        if self._collection is None:
+            self._collection = get_or_create_collection(collection_name=self.collection_name)
+        return self._collection
 
-        elif self.index_type == "ivf":
-            # Inverted file with quantization
-            nlist = 100  # number of clusters
-            quantizer = faiss.IndexFlatIP(self.dimension)
-            index = faiss.IndexIVFFlat(quantizer, self.dimension, nlist)
-            logger.info("Created FAISS IVF index for approximate search")
-
-        elif self.index_type == "hnsw":
-            # Hierarchical navigable small world graph
-            index = faiss.IndexHNSWFlat(self.dimension, 32)  # M=32 connections per node
-            index.hnsw.efConstruction = 200  # construction parameter
-            logger.info("Created FAISS HNSW index for graph-based search")
-
-        else:
-            raise ValueError(f"Unsupported index type: {self.index_type}")
-
-        return index
-
-    def _load_or_create_index(self) -> None:
+    def _get_vector_store(self) -> Chroma:
         """
-        Load existing index from disk or create a new one
-        """
-        if self.index_file.exists() and self.metadata_file.exists():
-            logger.info("Loading existing FAISS index from disk")
-            try:
-                # Load FAISS index
-                self._faiss_index = faiss.read_index(str(self.index_file))
-
-                # Load metadata
-                with open(self.metadata_file, 'rb') as f:
-                    self._document_metadata = pickle.load(f)
-
-                logger.info(f"Loaded index with {len(self._document_metadata)} document entries")
-
-            except Exception as e:
-                logger.error(f"Failed to load existing index: {str(e)}")
-                logger.info("Creating new index instead")
-                self._faiss_index = self._create_faiss_index()
-                self._document_metadata = []
-        else:
-            logger.info("Creating new FAISS index")
-            self._faiss_index = self._create_faiss_index()
-            self._document_metadata = []
-
-        # Create LlamaIndex FaissVectorStore wrapper
-        self._faiss_store = FaissVectorStore(faiss_index=self._faiss_index)
-
-    def get_vector_store(self) -> FaissVectorStore:
-        """
-        Get the FAISS vector store instance
+        Get the LangChain Chroma vector store instance
 
         Returns:
-            FaissVectorStore instance
+            Chroma: LangChain Chroma vector store
         """
-        if self._faiss_store is None:
-            self._load_or_create_index()
+        if self._vector_store is None:
+            collection = self._get_chroma_collection()
 
-        return self._faiss_store
+            # Create LangChain Chroma wrapper
+            self._vector_store = Chroma(
+                client=collection._client,
+                collection_name=collection.name,
+                embedding_function=None,  # We'll compute embeddings manually
+            )
+
+        return self._vector_store
 
     async def add_documents(self, documents: List[Document]) -> None:
         """
@@ -128,50 +77,58 @@ class VectorStoreService:
             logger.warning("No documents to add")
             return
 
-        logger.info(f"Adding {len(documents)} documents to vector store")
+        logger.info(f"Adding {len(documents)} documents to Chroma collection")
 
         try:
-            # Ensure index is loaded
-            if self._faiss_store is None:
-                self._load_or_create_index()
+            collection = self._get_chroma_collection()
 
             # Generate embeddings for all documents
             texts = [doc.text for doc in documents]
             embeddings = await self.embedding_service.get_embeddings(texts)
 
-            # Convert to numpy array and normalize
-            embeddings_array = np.array(embeddings, dtype=np.float32)
-            faiss.normalize_L2(embeddings_array)  # Normalize for cosine similarity
+            # Prepare documents for Chroma
+            ids = []
+            metadatas = []
 
-            # Add to FAISS index
-            self._faiss_index.add(embeddings_array)
+            for idx, doc in enumerate(documents):
+                # Create unique ID for each document
+                doc_id = doc.doc_id or f"doc_{idx}_{hash(doc.text) % 10000}"
+                ids.append(doc_id)
 
-            # Add document metadata
-            for doc in documents:
-                metadata = {
-                    'doc_id': doc.doc_id,
-                    'text': doc.text,
-                    'metadata': doc.metadata or {}
-                }
-                self._document_metadata.append(metadata)
+                # Prepare metadata
+                metadata = doc.metadata or {}
+                metadata.update({
+                    "text_preview": doc.text[:200]  # Store text preview
+                })
+                metadatas.append(metadata)
 
-            logger.info(f"Successfully added {len(documents)} documents to vector store")
+            # Add to Chroma collection
+            collection.add(
+                ids=ids,
+                embeddings=embeddings,
+                documents=texts,
+                metadatas=metadatas
+            )
+
+            logger.info(f"Successfully added {len(documents)} documents to Chroma collection")
 
         except Exception as e:
-            logger.error(f"Failed to add documents to vector store: {str(e)}")
+            logger.error(f"Failed to add documents to Chroma: {str(e)}")
             raise
 
-    async def search(self,
-                    query: str,
-                    top_k: int = 5,
-                    similarity_threshold: float = 0.7) -> List[NodeWithScore]:
+    async def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        similarity_threshold: float = 0.7
+    ) -> List[NodeWithScore]:
         """
-        Search for similar documents
+        Search for similar documents in Chroma collection
 
         Args:
             query: Query text
             top_k: Number of results to return
-            similarity_threshold: Minimum similarity score
+            similarity_threshold: Minimum similarity score (0-1)
 
         Returns:
             List of NodeWithScore objects
@@ -180,106 +137,102 @@ class VectorStoreService:
             return []
 
         try:
-            # Ensure index is loaded
-            if self._faiss_store is None:
-                self._load_or_create_index()
+            collection = self._get_chroma_collection()
 
             # Generate query embedding
             query_embedding = await self.embedding_service.get_embedding(query)
-            query_array = np.array([query_embedding], dtype=np.float32)
-            faiss.normalize_L2(query_array)  # Normalize for cosine similarity
 
-            # Search in FAISS index
-            scores, indices = self._faiss_index.search(query_array, min(top_k, len(self._document_metadata)))
+            # Search in Chroma collection
+            # Chroma returns distances, we need to convert to similarities
+            results = collection.query(
+                query_embeddings=[query_embedding],
+                n_results=min(top_k, 100),  # Get more results to filter by threshold
+                include=["documents", "metadatas", "distances"]
+            )
 
             # Convert to NodeWithScore objects
-            results = []
-            for score, idx in zip(scores[0], indices[0]):
-                if idx >= 0 and idx < len(self._document_metadata) and score >= similarity_threshold:
-                    metadata = self._document_metadata[idx]
+            search_results = []
 
-                    # Create Document object
-                    doc = Document(
-                        text=metadata['text'],
-                        doc_id=metadata['doc_id'],
-                        metadata=metadata['metadata']
-                    )
+            if results and results["ids"] and results["ids"][0]:
+                ids = results["ids"][0]
+                documents = results["documents"][0]
+                metadatas = results["metadatas"][0]
+                distances = results["distances"][0]
 
-                    # Create NodeWithScore
-                    node_with_score = NodeWithScore(
-                        node=doc,
-                        score=float(score)
-                    )
-                    results.append(node_with_score)
+                for idx, doc_id in enumerate(ids):
+                    # Convert distance to similarity (Chroma uses cosine distance)
+                    # For cosine distance: similarity = 1 - distance
+                    similarity = 1.0 - distances[idx]
 
-            logger.info(f"Found {len(results)} results for query (threshold: {similarity_threshold})")
-            return results
+                    if similarity >= similarity_threshold:
+                        # Extract metadata
+                        metadata = metadatas[idx] if idx < len(metadatas) else {}
 
-        except Exception as e:
-            logger.error(f"Failed to search vector store: {str(e)}")
-            raise
+                        # Remove text_preview from metadata for the document
+                        doc_metadata = {k: v for k, v in metadata.items() if k != "text_preview"}
 
-    def save_index(self) -> None:
-        """
-        Save the FAISS index and metadata to disk
-        """
-        if self._faiss_index is None:
-            logger.warning("No index to save")
-            return
+                        # Create Document object
+                        doc = Document(
+                            text=documents[idx],
+                            doc_id=doc_id,
+                            metadata=doc_metadata
+                        )
 
-        try:
-            # Save FAISS index
-            faiss.write_index(self._faiss_index, str(self.index_file))
+                        # Create NodeWithScore
+                        node_with_score = NodeWithScore(
+                            node=doc,
+                            score=float(similarity)
+                        )
+                        search_results.append(node_with_score)
 
-            # Save metadata
-            with open(self.metadata_file, 'wb') as f:
-                pickle.dump(self._document_metadata, f)
-
-            logger.info(f"Saved index with {len(self._document_metadata)} entries to disk")
+            logger.info(f"Found {len(search_results)} results for query (threshold: {similarity_threshold})")
+            return search_results
 
         except Exception as e:
-            logger.error(f"Failed to save index: {str(e)}")
+            logger.error(f"Failed to search Chroma collection: {str(e)}")
             raise
 
     def get_stats(self) -> Dict[str, Any]:
         """
-        Get statistics about the vector store
+        Get statistics about the Chroma collection
 
         Returns:
-            Dictionary with vector store statistics
+            Dictionary with collection statistics
         """
-        if self._faiss_index is None:
-            self._load_or_create_index()
+        try:
+            collection = self._get_chroma_collection()
+            count = collection.count()
 
-        return {
-            'index_type': self.index_type,
-            'dimension': self.dimension,
-            'total_documents': len(self._document_metadata),
-            'index_size': self._faiss_index.ntotal,
-            'index_file_exists': self.index_file.exists(),
-            'metadata_file_exists': self.metadata_file.exists()
-        }
+            return {
+                'collection_name': collection.name,
+                'document_count': count,
+                'status': 'active',
+                'dimension': self.embedding_service.get_embedding_dimension()
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get Chroma stats: {str(e)}")
+            return {
+                'collection_name': self.collection_name or 'rag_documents',
+                'document_count': 0,
+                'status': 'error',
+                'error': str(e)
+            }
 
     def clear_index(self) -> None:
         """
-        Clear all documents from the vector store
+        Clear all documents from the Chroma collection
         """
         try:
-            # Remove index files
-            if self.index_file.exists():
-                self.index_file.unlink()
-            if self.metadata_file.exists():
-                self.metadata_file.unlink()
+            from app.config.chroma_config import reset_collection
 
-            # Reset in-memory index
-            self._faiss_index = self._create_faiss_index()
-            self._document_metadata = []
-            self._faiss_store = FaissVectorStore(faiss_index=self._faiss_index)
+            self._collection = reset_collection(collection_name=self.collection_name)
+            self._vector_store = None  # Reset cached vector store
 
-            logger.info("Cleared vector store")
+            logger.info(f"Cleared Chroma collection: {self._collection.name}")
 
         except Exception as e:
-            logger.error(f"Failed to clear vector store: {str(e)}")
+            logger.error(f"Failed to clear Chroma collection: {str(e)}")
             raise
 
 
