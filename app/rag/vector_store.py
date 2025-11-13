@@ -1,15 +1,16 @@
 """
-Vector store module for managing ChromaDB storage.
+Vector store module for managing ChromaDB storage using LangChain.
 
 This module provides a service layer for document storage and retrieval using ChromaDB.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 import logging
+import numpy as np
 from chromadb import Collection
 from langchain_chroma import Chroma
-from llama_index.core.schema import Document, NodeWithScore
+from langchain_core.documents import Document
 from app.rag.embeddings import get_embedding_service
 from app.config.logging_config import get_logger
 from app.config.chroma_config import get_or_create_collection
@@ -18,8 +19,21 @@ from app.config.chroma_config import get_or_create_collection
 logger = get_logger(__name__)
 
 
+class SearchResult:
+    """Represents a search result with document and score"""
+    
+    def __init__(self, document: Document, score: float):
+        self.document = document
+        self.score = score
+    
+    @property
+    def node(self):
+        """Compatibility property for llama-index style access"""
+        return self.document
+
+
 class VectorStoreService:
-    """Service for managing ChromaDB vector storage"""
+    """Service for managing ChromaDB vector storage using LangChain"""
 
     def __init__(self, collection_name: Optional[str] = None):
         """
@@ -59,7 +73,6 @@ class VectorStoreService:
 
             # Create LangChain Chroma wrapper
             self._vector_store = Chroma(
-                client=collection._client,
                 collection_name=collection.name,
                 embedding_function=None,  # We'll compute embeddings manually
             )
@@ -83,7 +96,7 @@ class VectorStoreService:
             collection = self._get_chroma_collection()
 
             # Generate embeddings for all documents
-            texts = [doc.text for doc in documents]
+            texts = [doc.page_content for doc in documents]
             embeddings = await self.embedding_service.get_embeddings(texts)
 
             # Prepare documents for Chroma
@@ -92,20 +105,20 @@ class VectorStoreService:
 
             for idx, doc in enumerate(documents):
                 # Create unique ID for each document
-                doc_id = doc.doc_id or f"doc_{idx}_{hash(doc.text) % 10000}"
+                doc_id = doc.metadata.get('id', f"doc_{idx}_{hash(doc.page_content) % 10000}")
                 ids.append(doc_id)
 
                 # Prepare metadata
                 metadata = doc.metadata or {}
                 metadata.update({
-                    "text_preview": doc.text[:200]  # Store text preview
+                    "text_preview": doc.page_content[:200]  # Store text preview
                 })
                 metadatas.append(metadata)
 
-            # Add to Chroma collection
+            # Add to Chroma collection - convert embeddings to list of lists
             collection.add(
                 ids=ids,
-                embeddings=embeddings,
+                embeddings=[list(map(float, emb)) for emb in embeddings],
                 documents=texts,
                 metadatas=metadatas
             )
@@ -121,7 +134,7 @@ class VectorStoreService:
         query: str,
         top_k: int = 5,
         similarity_threshold: float = 0.7
-    ) -> List[NodeWithScore]:
+    ) -> List[SearchResult]:
         """
         Search for similar documents in Chroma collection
 
@@ -131,7 +144,7 @@ class VectorStoreService:
             similarity_threshold: Minimum similarity score (0-1)
 
         Returns:
-            List of NodeWithScore objects
+            List of SearchResult objects
         """
         if not query.strip():
             return []
@@ -150,14 +163,14 @@ class VectorStoreService:
                 include=["documents", "metadatas", "distances"]
             )
 
-            # Convert to NodeWithScore objects
+            # Convert to SearchResult objects
             search_results = []
 
-            if results and results["ids"] and results["ids"][0]:
+            if results and results.get("ids") and results["ids"]:
                 ids = results["ids"][0]
-                documents = results["documents"][0]
-                metadatas = results["metadatas"][0]
-                distances = results["distances"][0]
+                documents = results["documents"][0] if results["documents"] else []
+                metadatas = results["metadatas"][0] if results["metadatas"] else []
+                distances = results["distances"][0] if results["distances"] else []
 
                 for idx, doc_id in enumerate(ids):
                     # Convert distance to similarity (Chroma uses cosine distance)
@@ -173,17 +186,16 @@ class VectorStoreService:
 
                         # Create Document object
                         doc = Document(
-                            text=documents[idx],
-                            doc_id=doc_id,
+                            page_content=documents[idx] if idx < len(documents) else "",
                             metadata=doc_metadata
                         )
 
-                        # Create NodeWithScore
-                        node_with_score = NodeWithScore(
-                            node=doc,
+                        # Create SearchResult
+                        search_result = SearchResult(
+                            document=doc,
                             score=float(similarity)
                         )
-                        search_results.append(node_with_score)
+                        search_results.append(search_result)
 
             logger.info(f"Found {len(search_results)} results for query (threshold: {similarity_threshold})")
             return search_results

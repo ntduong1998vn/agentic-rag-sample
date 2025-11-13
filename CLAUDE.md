@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a fully implemented **agentic-rag** system with conversational AI capabilities - a retrieval-augmented generation system with agentic capabilities for in-house chatbot applications. The system features complete RAG functionality with Japanese semantic chunking, Voyage AI embeddings, **ChromaDB vector storage**, and Google Gemini 2.5 Flash-Lite integration for intelligent conversational responses.
 
+## New: GitLab Code Integration
+
+As of version 1.2.0, the system includes **GitLab repository integration** with AST-based code chunking for Python, JavaScript, TypeScript, and PHP. This allows you to:
+- Ingest entire GitLab repositories into the vector store
+- Extract structured code chunks at file, class, and function levels
+- Search code semantically with rich metadata
+- Query code alongside documents for comprehensive answers
+
 ## Development Environment
 
 - **Python**: 3.12.0 (specified in `.python-version`)
@@ -41,6 +49,16 @@ uv pip install <package>  # Install packages in current environment
 uv lock                   # Update lock file with latest versions
 ```
 
+### GitLab Connector Dependencies
+
+The GitLab integration requires these additional packages (installed via `uv sync`):
+- `python-gitlab` - GitLab API client
+- `tree-sitter` - Generic AST parsing library
+- `tree-sitter-python` - Python AST grammar
+- `tree-sitter-javascript` - JavaScript AST grammar
+- `tree-sitter-typescript` - TypeScript AST grammar
+- `tree-sitter-php` - PHP AST grammar
+
 ## Current Project Structure
 
 ```
@@ -48,6 +66,87 @@ agentic-rag/
 ├── app/                     # FastAPI application modules
 │   ├── __init__.py         # Package initialization
 │   ├── main.py             # FastAPI application entry point
+│   │
+│   ├── connectors/         # External service connectors
+│   │   ├── __init__.py
+│   │   └── gitlab_connector.py    # GitLab API integration
+│   │
+│   ├── config/             # Configuration modules
+│   │   ├── __init__.py
+│   │   ├── logging_config.py
+│   │   └── chroma_config.py       # ChromaDB configuration
+│   │
+│   ├── dto/                # Data transfer objects (Pydantic models)
+│   │   ├── __init__.py
+│   │   ├── ingestion.py           # Document ingestion models
+│   │   ├── chat.py                # Chat API models
+│   │   └── code_ingestion.py      # GitLab code models (NEW)
+│   │
+│   ├── rag/                # RAG system modules (document processing)
+│   │   ├── __init__.py
+│   │   ├── embeddings.py          # Voyage AI embedding generation
+│   │   ├── ingestion.py           # Document ingestion pipeline
+│   │   ├── semantic_splitter.py   # Japanese semantic chunking
+│   │   ├── vector_store.py        # ChromaDB vector storage
+│   │   ├── ast_splitter.py        # AST-based code chunking (NEW)
+│   │   └── code_ingestion.py      # GitLab code orchestration (NEW)
+│   │
+│   ├── routers/            # API route definitions
+│   │   ├── __init__.py
+│   │   ├── ingestion.py           # Document ingestion endpoints
+│   │   ├── chat.py                # Chat endpoints
+│   │   └── code_ingestion.py      # GitLab code endpoints (NEW)
+│   │
+│   ├── services/           # Business logic services
+│   │   ├── __init__.py
+│   │   ├── rag_service.py         # RAG operations service
+│   │   ├── chatbot_service.py     # Chat and LLM integration
+│   │   └── gitlab_service.py      # GitLab service layer (NEW)
+│   │
+│   └── utils/              # Utility modules
+│       ├── __init__.py
+│       └── session_manager.py     # Conversation session management
+│
+├── data/                   # Document storage directory
+├── chroma_data/           # ChromaDB data volume (created by Docker)
+├── .env                    # Environment variables (API keys)
+├── .env.example           # Environment variables template
+├── .gitignore             # Git ignore rules
+├── docker-compose.yml     # ChromaDB Docker configuration
+├── CLAUDE.md               # Project documentation
+├── pyproject.toml          # Project configuration and dependencies
+├── README.md               # Project readme
+├── uv.lock                 # Locked dependency versions
+└── .python-version         # Python version specification
+```
+
+### Core Components
+
+**Document Processing** (`app/rag/`):
+- `ingestion.py` - Multi-format document ingestion
+- `semantic_splitter.py` - Japanese-aware semantic text chunking
+- `embeddings.py` - Voyage AI 3.5 embedding generation
+- `vector_store.py` - ChromaDB storage and retrieval
+- `ast_splitter.py` - AST-based code parsing for Python/JS/TS/PHP (NEW)
+- `code_ingestion.py` - GitLab code orchestration (NEW)
+
+**External Integrations** (`app/connectors/`):
+- `gitlab_connector.py` - GitLab API client for repository access (NEW)
+
+**Service Layer** (`app/services/`):
+- `rag_service.py` - Core RAG operations
+- `chatbot_service.py` - LLM integration and chat management
+- `gitlab_service.py` - GitLab business logic (NEW)
+
+**API Layer** (`app/routers/`):
+- `ingestion.py` - Document management endpoints
+- `chat.py` - Chat and conversation endpoints
+- `code_ingestion.py` - GitLab code management endpoints (NEW)
+
+**Data Models** (`app/dto/`):
+- `ingestion.py` - Document ingestion API models
+- `chat.py` - Chat API models
+- `code_ingestion.py` - GitLab API request/response models (NEW)
 │   ├── config/             # Configuration modules
 │   │   ├── __init__.py
 │   │   ├── logging_config.py
@@ -131,6 +230,109 @@ This project implements a complete **agentic RAG system with conversational AI**
 - **Stateless Processing**: Each query processed independently without session memory
 - **Docker Integration**: ChromaDB runs in container (port 8001) with persistent volume
 
+## New: GitLab Integration (v1.2.0)
+
+The system now includes **GitLab connector** with AST-based code chunking. This enables:
+
+### GitLab Code Ingestion Pipeline
+1. **GitLab Connector** (`app/connectors/gitlab_connector.py`)
+   - Authenticates with GitLab using Personal Access Token
+   - Recursively traverses repository tree
+   - Filters by file extensions (.py, .js, .ts, .php)
+   - Respects .gitignore patterns
+   - Fetches file contents with metadata
+
+2. **AST Code Splitter** (`app/rag/ast_splitter.py`)
+   - Multi-language tree-sitter parsers (Python, JS, TS, PHP)
+   - Extracts hierarchical chunks (file → class → function)
+   - Rich metadata extraction:
+     - Function/class signatures
+     - Type hints and return types
+     - Docstrings (Python docstrings, JSDoc, PHPDoc)
+     - Decorators and visibility modifiers
+     - Line numbers and navigation info
+     - Parent class relationships
+
+3. **Code Ingestion Service** (`app/rag/code_ingestion.py`)
+   - Orchestrates GitLab fetching
+   - Processes chunks through AST splitter
+   - Prepares documents for vector storage
+   - Tracks ingestion statistics
+
+4. **GitLab Service Layer** (`app/services/gitlab_service.py`)
+   - Business logic for code operations
+   - Search with filtering (language, path, chunk type)
+   - Repository statistics
+   - Duplicate detection
+
+### Key Features
+- **Hierarchical Chunking**: Repository → File → Class → Function
+- **Rich Navigation**: Line numbers, signatures, docstrings
+- **Multi-language**: Python, JavaScript, TypeScript, PHP
+- **Metadata Filtering**: Search by language, file type, path
+- **Rate Limiting**: Respects GitLab API limits
+- **Error Handling**: Graceful failure for individual files
+
+## API Endpoints
+
+### GitLab Code Management (`/code`)
+- `POST /code/ingest?ref=main` - Ingest repository
+- `POST /code/search` - Search code with filters
+- `GET /code/stats` - Get repository statistics
+- `GET /code/files` - List ingested files
+- `DELETE /code/clear?confirm=true` - Clear all code
+- `GET /code/health` - Check GitLab connectivity
+
+### Core RAG Endpoints
+- `POST /chat` - Chat with RAG system
+- `POST /ingest` - Process documents from data directory
+- `GET /ingest/documents` - List processed documents
+- `GET /ingest/stats` - Get ingestion statistics
+
+### System Endpoints
+- `GET /` - API information
+- `GET /health` - Health check
+- `GET /info` - Detailed API information
+- `GET /docs` - Swagger UI documentation
+- `GET /redoc` - ReDoc documentation
+
+## Environment Configuration
+
+### Core Configuration (Required)
+```bash
+# Voyage AI API Configuration
+VOYAGE_API_KEY=your_voyage_api_key_here
+
+# Google Gemini API Configuration
+GOOGLE_API_KEY=your_google_api_key_here
+
+# ChromaDB Configuration
+CHROMA_HOST=localhost
+CHROMA_PORT=8001
+CHROMA_COLLECTION_NAME=rag_documents
+```
+
+### GitLab Configuration (Optional)
+```bash
+# GitLab Configuration
+GITLAB_URL=https://gitlab.com  # or your self-hosted GitLab
+GITLAB_TOKEN=your_gitlab_personal_access_token_here
+GITLAB_PROJECT_ID=your_project_id_here
+
+# Code Chunking Configuration
+CODE_CHUNKING_MIN_TOKENS=100    # Minimum tokens per chunk
+CODE_CHUNKING_MAX_TOKENS=2000   # Maximum tokens per chunk
+```
+
+### Semantic Chunking Configuration
+```bash
+# These control how documents are split into chunks
+SEMANTIC_BREAKPOINT_PERCENTILE_THRESHOLD=90
+SEMANTIC_BUFFER_SIZE=1
+SEMANTIC_MAX_TOKENS_PER_CHUNK=800
+SEMANTIC_TOKEN_OVERLAP=50
+```
+
 ## Key Dependencies
 
 ### RAG Components
@@ -140,6 +342,14 @@ This project implements a complete **agentic RAG system with conversational AI**
 - **chromadb**: ChromaDB vector database
 - **langchain-chroma**: LangChain ChromaDB integration
 - **voyageai**: Voyage AI client
+
+### GitLab Integration (NEW)
+- **python-gitlab**: GitLab API client
+- **tree-sitter**: Generic AST parsing library
+- **tree-sitter-python**: Python AST grammar
+- **tree-sitter-javascript**: JavaScript AST grammar
+- **tree-sitter-typescript**: TypeScript AST grammar
+- **tree-sitter-php**: PHP AST grammar
 
 ### Chatbot Components
 - **langchain**: Modern LLM framework
@@ -160,6 +370,8 @@ This project implements a complete **agentic RAG system with conversational AI**
 - **LangChain + Gemini 2.5 Flash-Lite**: State-of-the-art conversational AI with streaming support
 - **Voyage AI 3.5**: Advanced embeddings optimized for multilingual semantic search
 - **ChromaDB**: Modern vector database with built-in similarity search
+- **Tree-sitter**: Fast and accurate AST parsing for code analysis
+- **GitLab API**: Direct integration with GitLab repositories
 - **Separation of Concerns**: Clean architecture separating RAG processing from chatbot logic
 
 ## Quick Start Guide
@@ -203,6 +415,35 @@ This project implements a complete **agentic RAG system with conversational AI**
    - Health Check: http://localhost:8000/health
    - Welcome: http://localhost:8000/
    - API Info: http://localhost:8000/info
+
+## Optional: GitLab Integration
+
+To use the GitLab code ingestion feature:
+
+7. **Configure GitLab credentials**:
+   ```bash
+   # Edit .env file
+   GITLAB_URL=https://gitlab.com
+   GITLAB_TOKEN=your_gitlab_personal_access_token
+   GITLAB_PROJECT_ID=12345  # Your GitLab project ID
+   ```
+
+8. **Verify GitLab connectivity** (before ingestion):
+   ```bash
+   curl http://localhost:8000/code/health
+   ```
+
+9. **Ingest GitLab repository**:
+   ```bash
+   curl -X POST "http://localhost:8000/code/ingest?ref=main"
+   ```
+
+10. **Search code**:
+    ```bash
+    curl -X POST http://localhost:8000/code/search \
+      -H "Content-Type: application/json" \
+      -d '{"query": "authentication function", "language": "python", "top_k": 5}'
+    ```
 
 ## API Usage Examples
 
@@ -251,6 +492,58 @@ curl -X GET "http://localhost:8000/info"
 
 # Root endpoint
 curl -X GET "http://localhost:8000/"
+```
+
+### GitLab Code Endpoints
+
+```bash
+# Check GitLab connectivity
+curl http://localhost:8000/code/health
+
+# Ingest entire repository from main branch
+curl -X POST "http://localhost:8000/code/ingest?ref=main"
+
+# Ingest from specific branch or tag
+curl -X POST "http://localhost:8000/code/ingest?ref=develop"
+curl -X POST "http://localhost:8000/code/ingest?ref=v1.0.0"
+
+# Search code (general query)
+curl -X POST http://localhost:8000/code/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "authentication function", "top_k": 10}'
+
+# Search with language filter
+curl -X POST http://localhost:8000/code/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "API endpoint", "language": "python", "top_k": 5}'
+
+# Search with file path filter
+curl -X POST http://localhost:8000/code/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "user management", "file_path": "src/auth/*.py", "top_k": 10}'
+
+# Search specific chunk types
+curl -X POST http://localhost:8000/code/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "handle database connection", "chunk_type": "function", "top_k": 5}'
+
+# Get repository statistics
+curl http://localhost:8000/code/stats
+
+# List ingested files
+curl http://localhost:8000/code/files
+
+# List files filtered by language
+curl "http://localhost:8000/code/files?language=python"
+
+# Paginated file listing
+curl "http://localhost:8000/code/files?page=1&limit=50"
+
+# List files in specific directory
+curl "http://localhost:8000/code/files?path=src/components/"
+
+# Clear all code documents (confirmation required)
+curl -X DELETE "http://localhost:8000/code/clear?confirm=true"
 ```
 
 ## Development and Testing

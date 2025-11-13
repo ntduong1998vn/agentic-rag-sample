@@ -153,9 +153,9 @@ class RAGService:
             formatted_results = []
             for result in results:
                 formatted_results.append({
-                    "text": result.node.text,
+                    "text": result.document.page_content,
                     "score": result.score,
-                    "metadata": result.node.metadata or {}
+                    "metadata": result.document.metadata or {}
                 })
 
             return {
@@ -191,7 +191,7 @@ class RAGService:
             # For now, we'll extract document info from the vector store metadata
             # In a more complete implementation, you might have a separate document registry
             documents = []
-            total_documents = vector_stats["total_documents"]
+            total_documents = vector_stats.get("document_count", 0)
 
             if total_documents > 0:
                 # Get detailed information from vector store
@@ -223,6 +223,7 @@ class RAGService:
             return response.dict()
 
     
+
     def clear_all_documents(self) -> Dict[str, Any]:
         """
         Clear all documents from the vector store
@@ -264,5 +265,3 @@ def get_rag_service() -> RAGService:
     if _rag_service is None:
         _rag_service = RAGService()
     return _rag_service
-
-

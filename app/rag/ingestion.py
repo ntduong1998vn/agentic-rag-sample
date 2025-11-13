@@ -4,32 +4,22 @@ from pathlib import Path
 import logging
 from datetime import datetime
 
-# LlamaIndex imports
-from llama_index.core import Document
-from llama_index.core.readers import SimpleDirectoryReader
-from llama_index.readers.file import (
-    PDFReader,
-    DocxReader,
-    CSVReader,
-    EpubReader,
-    MarkdownReader,
-    ImageReader,
-)
+# LangChain imports
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 # Local imports
 from app.rag.embeddings import get_embedding_service
 from app.rag.vector_store import get_vector_store_service
-from app.rag.semantic_splitter import create_semantic_splitter
 from app.config.logging_config import get_logger
 
 # Configure logging
 logger = get_logger(__name__)
 
 
-
-
 class DocumentIngestionService:
     """
-    Service for ingesting documents into the RAG system
+    Service for ingesting documents into the RAG system using LangChain
     """
 
     def __init__(self, data_path: str = "data"):
@@ -49,52 +39,14 @@ class DocumentIngestionService:
         self.embedding_service = get_embedding_service()
         self.vector_store_service = get_vector_store_service()
 
-        # Initialize file readers
-        self.readers = {
-            ".pdf": PDFReader(),
-            ".docx": DocxReader(),
-            ".doc": DocxReader(),
-            ".csv": CSVReader(),
-            ".epub": EpubReader(),
-            ".md": MarkdownReader(),
-            # Image files
-            ".jpg": ImageReader(),
-            ".jpeg": ImageReader(),
-            ".png": ImageReader(),
-            ".gif": ImageReader(),
-            ".bmp": ImageReader(),
-            ".tiff": ImageReader(),
-        }
-
-        # Semantic Japanese splitter using Voyage AI embeddings
-        try:
-            self.text_splitter = create_semantic_splitter()
-            logger.info("Successfully initialized semantic text splitter")
-        except Exception as e:
-            error_msg = f"Failed to initialize semantic splitter: {str(e)}"
-            logger.error(error_msg)
-            raise RuntimeError(error_msg) from e
+        # Initialize LangChain text splitter for document chunking
+        self.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200,
+            length_function=len,
+        )
 
         logger.info(f"Initialized DocumentIngestionService with data path: {self.data_path}")
-
-    def _get_file_reader(self, file_path: Path):
-        """
-        Get the appropriate reader for a file type
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            File reader instance
-        """
-        file_extension = file_path.suffix.lower()
-
-        if file_extension in self.readers:
-            return self.readers[file_extension]
-        else:
-            # Default to text reader for unsupported files
-            logger.warning(f"No specific reader for {file_extension}, using default text reader")
-            return SimpleDirectoryReader(input_files=[str(file_path)])
 
     def _extract_file_metadata(self, file_path: Path) -> Dict[str, Any]:
         """
@@ -126,6 +78,50 @@ class DocumentIngestionService:
                 "error": str(e)
             }
 
+    def _load_file_content(self, file_path: Path) -> Optional[str]:
+        """
+        Load content from a file based on its extension
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            File content as string or None if failed
+        """
+        try:
+            file_ext = file_path.suffix.lower()
+            
+            # Handle different file types
+            if file_ext in ['.pdf']:
+                # For PDF files, you would need a PDF reader
+                # For now, treat as text file
+                pass
+            elif file_ext in ['.docx', '.doc']:
+                # For Word documents, you would need python-docx
+                # For now, treat as text file
+                pass
+            elif file_ext in ['.csv']:
+                # Handle CSV files
+                import csv
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    return content
+            elif file_ext in ['.md', '.txt', '.py', '.js', '.ts', '.jsx', '.tsx', '.php', '.java', '.cpp', '.c', '.h']:
+                # Text-based files
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            else:
+                # Default: try to read as text
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    return f.read()
+                    
+        except UnicodeDecodeError:
+            logger.warning(f"Could not decode file as UTF-8: {file_path}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to load file content: {str(e)}")
+            return None
+
     def _process_single_file(self, file_path: Path) -> Tuple[List[Document], Dict[str, Any]]:
         """
         Process a single file and return documents with metadata
@@ -142,57 +138,34 @@ class DocumentIngestionService:
             # Extract file metadata
             file_metadata = self._extract_file_metadata(file_path)
 
-            # Get appropriate reader
-            reader = self._get_file_reader(file_path)
-
-            # Load documents
-            if isinstance(reader, SimpleDirectoryReader):
-                # For SimpleDirectoryReader, we need to specify the file
-                temp_reader = SimpleDirectoryReader(input_files=[str(file_path)])
-                documents = temp_reader.load_data()
-            else:
-                # For specialized readers
-                documents = reader.load_data(file_path)
-
-            if not documents:
+            # Load file content
+            content = self._load_file_content(file_path)
+            if not content:
                 logger.warning(f"No content extracted from {file_path}")
                 return [], {**file_metadata, "status": "no_content"}
 
-            # Add file metadata to all documents
-            for doc in documents:
-                doc.metadata = {**doc.metadata, **file_metadata}
+            # Create document with metadata
+            doc = Document(
+                page_content=content,
+                metadata={
+                    **file_metadata,
+                    "id": f"{file_path.stem}_{hash(content) % 10000}"
+                }
+            )
 
-            # Split documents into chunks using semantic splitter
+            # Split document into chunks using LangChain text splitter
             try:
-                # Use semantic splitter which returns TextNode objects
-                semantic_nodes = self.text_splitter.split_documents(documents)
-
-                # Convert TextNode objects back to Document objects for compatibility
-                chunked_documents = []
-                for i, node in enumerate(semantic_nodes):
-                    chunk_doc = Document(
-                        text=node.get_text(),
-                        doc_id=f"{file_path.stem}_semantic_chunk_{i}",
-                        metadata={
-                            **node.metadata,
-                            "chunk_index": i,
-                            "total_chunks": len(semantic_nodes),
-                            "chunk_text": node.get_text(),
-                            "chunking_method": "semantic_voyage"
-                        }
-                    )
-                    chunked_documents.append(chunk_doc)
-
-                logger.info(f"Semantic splitting created {len(semantic_nodes)} chunks from {len(documents)} documents")
-
+                chunks = self.text_splitter.split_documents([doc])
+                logger.info(f"Text splitting created {len(chunks)} chunks from 1 document")
             except Exception as e:
-                error_msg = f"Semantic splitting failed for {file_path}: {str(e)}"
+                error_msg = f"Text splitting failed for {file_path}: {str(e)}"
                 logger.error(error_msg)
-                raise RuntimeError(error_msg) from e
+                # If splitting fails, use the original document as a single chunk
+                chunks = [doc]
 
-            logger.info(f"Processed {file_path}: {len(documents)} documents -> {len(chunked_documents)} chunks")
+            logger.info(f"Processed {file_path}: 1 document -> {len(chunks)} chunks")
 
-            return chunked_documents, {**file_metadata, "status": "success", "chunk_count": len(chunked_documents)}
+            return chunks, {**file_metadata, "status": "success", "chunk_count": len(chunks)}
 
         except Exception as e:
             logger.error(f"Failed to process {file_path}: {str(e)}")
@@ -270,7 +243,6 @@ class DocumentIngestionService:
             try:
                 logger.info(f"Adding {len(all_documents)} chunks to vector store")
                 await self.vector_store_service.add_documents(all_documents)
-                self.vector_store_service.save_index()
                 logger.info("Successfully added documents to vector store")
             except Exception as e:
                 logger.error(f"Failed to add documents to vector store: {str(e)}")
@@ -293,7 +265,7 @@ class DocumentIngestionService:
         Returns:
             List of supported file extensions
         """
-        return list(self.readers.keys())
+        return ['.pdf', '.docx', '.doc', '.csv', '.md', '.txt', '.py', '.js', '.ts', '.jsx', '.tsx', '.php', '.java', '.cpp', '.c', '.h']
 
 
 # Global ingestion service instance

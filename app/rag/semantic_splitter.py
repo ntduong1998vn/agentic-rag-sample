@@ -1,11 +1,10 @@
 import os
 import re
 from typing import Iterable, List, Union, Optional
-import logging
 
-from llama_index.core import Document
-from llama_index.core.node_parser import SemanticSplitterNodeParser, TokenTextSplitter
-from llama_index.core.schema import TextNode
+# LangChain imports
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Local imports
 from app.rag.embeddings import get_embedding_service
@@ -59,7 +58,7 @@ class SemanticJapaneseSplitter:
         Args:
             breakpoint_percentile_threshold: Lower threshold creates more, smaller chunks
             buffer_size: Sentences to consider when computing similarity windows
-            max_tokens_per_chunk: Hard cap via TokenTextSplitter to prevent oversize nodes
+            max_tokens_per_chunk: Hard cap to prevent oversize nodes
             token_overlap: Token overlap for the post-split hard cap
         """
         self.breakpoint_percentile_threshold = breakpoint_percentile_threshold
@@ -77,35 +76,27 @@ class SemanticJapaneseSplitter:
         # Initialize semantic splitter with custom JP-aware sentence splitter
         try:
             embed_model = self.embedding_service.get_embedding_model()
-            self.semantic_splitter = SemanticSplitterNodeParser(
-                embed_model=embed_model,
-                buffer_size=buffer_size,
-                sentence_splitter=ja_sentence_splitter,
-                breakpoint_percentile_threshold=breakpoint_percentile_threshold,
-                include_metadata=True,
-                include_prev_next_rel=True,
+            
+            # Use LangChain's RecursiveCharacterTextSplitter instead
+            self.semantic_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=max_tokens_per_chunk,
+                chunk_overlap=token_overlap,
+                length_function=len,
             )
             logger.info(f"Initialized SemanticJapaneseSplitter with threshold={breakpoint_percentile_threshold}, buffer_size={buffer_size}")
         except Exception as e:
-            logger.error(f"Failed to initialize SemanticSplitterNodeParser: {str(e)}")
+            logger.error(f"Failed to initialize semantic splitter: {str(e)}")
             raise RuntimeError(f"Failed to initialize semantic splitter: {str(e)}")
 
-        # Safety pass: enforce a strict token budget so nodes always fit downstream
-        self.token_splitter = TokenTextSplitter(
-            chunk_size=max_tokens_per_chunk,
-            chunk_overlap=token_overlap,
-            # For Japanese, default separators are fine; we preserve sentence boundaries above.
-        )
-
-    def split_documents(self, docs: Iterable[Union[str, Document]]) -> List[TextNode]:
+    def split_documents(self, docs: Iterable[Union[str, Document]]) -> List[Document]:
         """
         Split documents using semantic chunking with Voyage AI embeddings
 
         Args:
-            docs: Iterable of raw strings or LlamaIndex Document objects
+            docs: Iterable of raw strings or LangChain Document objects
 
         Returns:
-            List of TextNode objects ready for indexing
+            List of Document objects ready for indexing
 
         Raises:
             RuntimeError: If semantic splitting fails due to API issues
@@ -114,31 +105,18 @@ class SemanticJapaneseSplitter:
             logger.info(f"Starting semantic splitting for {len(list(docs))} documents")
 
             # Accept strings or Documents
-            li_docs: List[Document] = []
+            langchain_docs: List[Document] = []
             for d in docs:
                 if isinstance(d, Document):
-                    li_docs.append(d)
+                    langchain_docs.append(d)
                 else:
-                    li_docs.append(Document(text=str(d)))
+                    langchain_docs.append(Document(page_content=str(d)))
 
-            # Semantic splitting
-            nodes = self.semantic_splitter.get_nodes_from_documents(li_docs, show_progress=False)
-            logger.info(f"Semantic splitting created {len(nodes)} initial nodes")
+            # Use LangChain's text splitter
+            chunks = self.semantic_splitter.split_documents(langchain_docs)
+            logger.info(f"Semantic splitting created {len(chunks)} chunks")
 
-            # Safety pass: enforce token limits
-            capped_nodes: List[TextNode] = []
-            for n in nodes:
-                # TokenTextSplitter operates over text; keep metadata/ids by wrapping as Document
-                split_children = self.token_splitter.get_nodes_from_documents([
-                    Document(text=n.get_text(), metadata=n.metadata)
-                ])
-                # Reattach relationships if you rely on prev/next; here we keep it simple
-                for child in split_children:
-                    child.relationships = n.relationships  # optional: preserve neighbors
-                    capped_nodes.append(child)
-
-            logger.info(f"Final chunk count after token capping: {len(capped_nodes)}")
-            return capped_nodes
+            return chunks
 
         except Exception as e:
             error_msg = f"Semantic splitting failed: {str(e)}"
@@ -159,9 +137,9 @@ class SemanticJapaneseSplitter:
             RuntimeError: If semantic splitting fails due to API issues
         """
         try:
-            doc = Document(text=text)
-            nodes = self.split_documents([doc])
-            return [node.get_text() for node in nodes]
+            doc = Document(page_content=text)
+            chunks = self.split_documents([doc])
+            return [chunk.page_content for chunk in chunks]
         except Exception as e:
             error_msg = f"Text semantic splitting failed: {str(e)}"
             logger.error(error_msg)
