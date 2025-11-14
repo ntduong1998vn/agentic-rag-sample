@@ -10,7 +10,6 @@ import os
 import re
 from typing import List, Dict, Any, Optional, Tuple, Union
 from pathlib import Path
-import logging
 from dataclasses import dataclass
 
 # Tree-sitter imports

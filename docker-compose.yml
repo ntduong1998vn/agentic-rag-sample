@@ -8,11 +8,11 @@ services:
       - "8001:8000"
     volumes:
       - chroma_data:/chroma/chroma
+      - ./server.htpasswd:/chroma/server.htpasswd:ro
     environment:
-      - CHROMA_SERVER_AUTHN_CREDENTIALS=${CHROMA_AUTH_TOKEN:-rag_token_123}
+      - CHROMA_SERVER_AUTHN_CREDENTIALS="chr0ma-t0k3n"
+      - CHROMA_AUTH_TOKEN_TRANSPORT_HEADER="Authorization"
       - CHROMA_SERVER_AUTHN_PROVIDER=chromadb.auth.token_authn.TokenAuthenticationServerProvider
-      - CHROMA_ALLOW_RESET=true
-      - ALLOW_RESET=true
     restart: unless-stopped
 
   qdrant:
@@ -29,8 +29,43 @@ services:
       - QDRANT__LOG_LEVEL=INFO
     restart: unless-stopped
 
+  postgres:
+    image: postgres:15-alpine
+    container_name: vectoradmin-db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=vectoradmin
+      - POSTGRES_USER=vectoradmin
+      - POSTGRES_PASSWORD=vectoradmin123
+    restart: unless-stopped
+
+  vectoradmin:
+    image: mintplexlabs/vectoradmin:latest
+    container_name: vectoradmin
+    ports:
+      - "5000:3000"
+    environment:
+      - SERVER_PORT=3000
+      - JWT_SECRET=${VECTORADMIN_JWT_SECRET:-supersecret}
+      - DATABASE_CONNECTION_STRING=postgresql://vectoradmin:vectoradmin123@postgres:5432/vectoradmin
+      - CHROMA_SERVER_URL=http://chroma:8000
+      - CHROMA_AUTH_TYPE=basic
+      - CHROMA_USERNAME=admin
+      - CHROMA_PASSWORD=admin123
+      - QDRANT_SERVER_URL=http://qdrant:6333
+    depends_on:
+      - chroma
+      - qdrant
+      - postgres
+    restart: unless-stopped
+
 volumes:
   chroma_data:
     driver: local
   qdrant_data:
+    driver: local
+  postgres_data:
     driver: local
