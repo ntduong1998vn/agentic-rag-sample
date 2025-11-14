@@ -1,1 +1,34 @@
-{"mcpServers":{"context7":{"command":"npx","args":["-y","@upstash/context7-mcp"],"env":{"DEFAULT_MINIMUM_TOKENS":""}},"tavily":{"command":"npx","args":["-y","tavily-mcp@0.2.3"],"env":{"TAVILY_API_KEY":"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"}},"sequentialthinking":{"command":"npx","args":["-y","@modelcontextprotocol/server-sequential-thinking"],"alwaysAllow":[]}}}
+{
+    "mcpServers": {
+        "context7": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@upstash/context7-mcp",
+                "--api-key",
+                "ctx7sk-18ff2a73-619e-447c-a5bc-718d8a496e6e"
+            ],
+            "env": {
+                "DEFAULT_MINIMUM_TOKENS": ""
+            }
+        },
+        "tavily": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "tavily-mcp@0.2.3"
+            ],
+            "env": {
+                "TAVILY_API_KEY": "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"
+            }
+        },
+        "sequentialthinking": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-sequential-thinking"
+            ],
+            "alwaysAllow": []
+        }
+    }
+}

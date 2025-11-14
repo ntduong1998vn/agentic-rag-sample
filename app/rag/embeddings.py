@@ -2,6 +2,7 @@ import os
 from typing import List, Optional
 from langchain_core.embeddings import Embeddings
 from dotenv import load_dotenv
+from voyageai.client import Client
 from app.config.logging_config import get_logger
 
 # Configure logging
@@ -14,7 +15,7 @@ load_dotenv()
 class VoyageEmbeddings(Embeddings):
     """Custom LangChain embedding wrapper for Voyage AI"""
     
-    def __init__(self, model_name: str = "voyage-3.5", api_key: Optional[str] = None):
+    def __init__(self, model_name: str = "voyage-code-3", api_key: Optional[str] = None):
         self.model_name = model_name
         self.api_key = api_key or os.getenv("VOYAGE_API_KEY")
         
@@ -24,15 +25,13 @@ class VoyageEmbeddings(Embeddings):
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Embed a list of documents"""
         try:
-            import voyageai
             logger.info(f"Generating embeddings for {len(texts)} documents")
             
-            # Use the correct voyageai API
-            client = voyageai
+            # Create a Voyage client and use the correct API
+            client = Client(api_key=self.api_key)
             result = client.embed(
                 texts=texts,
-                model=self.model_name,
-                api_key=self.api_key
+                model=self.model_name
             )
             logger.info(f"Successfully generated {len(result.embeddings)} embeddings")
             
@@ -45,15 +44,13 @@ class VoyageEmbeddings(Embeddings):
     def embed_query(self, text: str) -> List[float]:
         """Embed a single query text"""
         try:
-            import voyageai
             logger.info(f"Generating embedding for query text (length: {len(text)})")
             
-            # Use the correct voyageai API
-            client = voyageai
+            # Create a Voyage client and use the correct API
+            client = Client(api_key=self.api_key)
             result = client.embed(
                 texts=[text],
-                model=self.model_name,
-                api_key=self.api_key
+                model=self.model_name
             )
             embedding = result.embeddings[0]
             logger.info(f"Successfully generated embedding with dimension: {len(embedding)}")
@@ -68,12 +65,12 @@ class VoyageEmbeddings(Embeddings):
 class EmbeddingService:
     """Service for managing Voyage AI embeddings using LangChain"""
 
-    def __init__(self, model_name: str = "voyage-3.5", api_key: Optional[str] = None):
+    def __init__(self, model_name: str = "voyage-code-3", api_key: Optional[str] = None):
         """
         Initialize the embedding service
 
         Args:
-            model_name: Voyage AI model name (default: voyage-3.5)
+            model_name: Voyage AI model name (default: voyage-code-3)
             api_key: Voyage AI API key (from env if not provided)
         """
         self.model_name = model_name
@@ -163,7 +160,7 @@ class EmbeddingService:
         Returns:
             Embedding dimension size
         """
-        # Voyage 3.5 produces 1024-dimensional embeddings
+        # Voyage Code-3 produces 1024-dimensional embeddings
         return 1024
   
 
