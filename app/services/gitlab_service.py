@@ -370,6 +370,9 @@ class GitLabRAGService:
                 return False, "VOYAGE_API_KEY environment variable not set"
 
             # Validate vector store
+            # Validate vector store
+            if not os.environ.get('QDRANT_HOST'):
+                logger.warning("QDRANT_HOST not set, using default: localhost")
             if not os.environ.get('CHROMA_HOST'):
                 logger.warning("CHROMA_HOST not set, using default: localhost")
 

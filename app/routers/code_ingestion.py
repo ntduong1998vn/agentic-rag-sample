@@ -72,6 +72,8 @@ def get_service() -> GitLabRAGService:
     - Parse files using tree-sitter AST parser
     - Extract structured chunks (file, class, function levels)
     - Generate embeddings using Voyage AI
+    - Store in Qdrant vector storage
+    - Generate embeddings using Voyage AI
     - Store in ChromaDB vector storage
 
     Supported languages: Python, JavaScript, TypeScript, PHP
@@ -169,6 +171,10 @@ def get_repository_stats(
     summary="Search code",
     description="""
     Search for relevant code snippets in the ingested repository.
+    Performs semantic search using:
+    - Voyage AI embeddings
+    - Qdrant vector similarity search
+    - Metadata filtering
 
     Performs semantic search using:
     - Voyage AI embeddings

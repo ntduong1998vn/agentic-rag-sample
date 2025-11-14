@@ -1,19 +1,21 @@
 """
-Vector store module for managing ChromaDB storage using LangChain.
+Vector store module for managing Qdrant storage.
 
-This module provides a service layer for document storage and retrieval using ChromaDB.
+This module provides a service layer for document storage and retrieval using Qdrant.
 """
 
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 from pathlib import Path
+import os
 import logging
 import numpy as np
-from chromadb import Collection
-from langchain_chroma import Chroma
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
+from qdrant_client.http.models import PointStruct, SearchRequest
 from langchain_core.documents import Document
 from app.rag.embeddings import get_embedding_service
 from app.config.logging_config import get_logger
-from app.config.chroma_config import get_or_create_collection
+from app.config.qdrant_config import get_or_create_collection
 
 # Configure logging
 logger = get_logger(__name__)
@@ -33,51 +35,48 @@ class SearchResult:
 
 
 class VectorStoreService:
-    """Service for managing ChromaDB vector storage using LangChain"""
+    """Service for managing Qdrant vector storage"""
 
     def __init__(self, collection_name: Optional[str] = None):
         """
         Initialize the vector store service
 
         Args:
-            collection_name: Name of the Chroma collection (uses env var if None)
+            collection_name: Name of the Qdrant collection (uses env var if None)
         """
         self.embedding_service = get_embedding_service()
         self.collection_name = collection_name
-        self._chroma_client = None
+        self._qdrant_client = None
         self._collection = None
-        self._vector_store = None
 
-        logger.info("Initialized VectorStoreService with ChromaDB")
+        logger.info("Initialized VectorStoreService with Qdrant")
 
-    def _get_chroma_collection(self) -> Collection:
+    def _get_qdrant_client(self) -> QdrantClient:
         """
-        Get or create the ChromaDB collection
+        Get or create the Qdrant client
 
         Returns:
-            Collection: ChromaDB collection instance
+            QdrantClient: Qdrant client instance
+        """
+        if self._qdrant_client is None:
+            from app.config.qdrant_config import get_qdrant_client
+            self._qdrant_client = get_qdrant_client()
+        return self._qdrant_client
+
+    def _get_collection(self) -> models.CollectionInfo:
+        """
+        Get or create the Qdrant collection
+
+        Returns:
+            models.CollectionInfo: Collection info
         """
         if self._collection is None:
-            self._collection = get_or_create_collection(collection_name=self.collection_name)
-        return self._collection
-
-    def _get_vector_store(self) -> Chroma:
-        """
-        Get the LangChain Chroma vector store instance
-
-        Returns:
-            Chroma: LangChain Chroma vector store
-        """
-        if self._vector_store is None:
-            collection = self._get_chroma_collection()
-
-            # Create LangChain Chroma wrapper
-            self._vector_store = Chroma(
-                collection_name=collection.name,
-                embedding_function=None,  # We'll compute embeddings manually
+            vector_size = self.embedding_service.get_embedding_dimension()
+            self._collection = get_or_create_collection(
+                collection_name=self.collection_name,
+                vector_size=vector_size
             )
-
-        return self._vector_store
+        return self._collection
 
     async def add_documents(self, documents: List[Document]) -> None:
         """
@@ -90,43 +89,62 @@ class VectorStoreService:
             logger.warning("No documents to add")
             return
 
-        logger.info(f"Adding {len(documents)} documents to Chroma collection")
+        logger.info(f"Adding {len(documents)} documents to Qdrant collection")
 
         try:
-            collection = self._get_chroma_collection()
+            client = self._get_qdrant_client()
+            collection_info = self._get_collection()
+            collection_name = os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
 
             # Generate embeddings for all documents
             texts = [doc.page_content for doc in documents]
             embeddings = await self.embedding_service.get_embeddings(texts)
 
-            # Prepare documents for Chroma
-            ids = []
-            metadatas = []
+            # Prepare points for Qdrant
+            points = []
 
             for idx, doc in enumerate(documents):
                 # Create unique ID for each document
                 doc_id = doc.metadata.get('id', f"doc_{idx}_{hash(doc.page_content) % 10000}")
-                ids.append(doc_id)
-
+                
                 # Prepare metadata
                 metadata = doc.metadata or {}
                 metadata.update({
                     "text_preview": doc.page_content[:200]  # Store text preview
                 })
-                metadatas.append(metadata)
 
-            # Add to Chroma collection - convert embeddings to list of lists
-            collection.add(
-                ids=ids,
-                embeddings=[list(map(float, emb)) for emb in embeddings],
-                documents=texts,
-                metadatas=metadatas
+                # Convert embedding to list if it's a numpy array
+                embedding_vector = embeddings[idx]
+                if hasattr(embedding_vector, 'tolist'):
+                    embedding_vector = embedding_vector.tolist()
+                elif isinstance(embedding_vector, list):
+                    embedding_vector = embedding_vector
+                else:
+                    # Convert to list if it's a numpy array
+                    embedding_vector = list(embedding_vector)
+
+                # Create point
+                point = PointStruct(
+                    id=doc_id,
+                    vector=embedding_vector,
+                    payload={
+                        **metadata,
+                        "document": doc.page_content,
+                        "chunk_text": doc.page_content
+                    }
+                )
+                points.append(point)
+
+            # Upload points to Qdrant
+            client.upsert(
+                collection_name=collection_name,
+                points=points
             )
 
-            logger.info(f"Successfully added {len(documents)} documents to Chroma collection")
+            logger.info(f"Successfully added {len(documents)} documents to Qdrant collection")
 
         except Exception as e:
-            logger.error(f"Failed to add documents to Chroma: {str(e)}")
+            logger.error(f"Failed to add documents to Qdrant: {str(e)}")
             raise
 
     async def search(
@@ -136,7 +154,7 @@ class VectorStoreService:
         similarity_threshold: float = 0.7
     ) -> List[SearchResult]:
         """
-        Search for similar documents in Chroma collection
+        Search for similar documents in Qdrant collection
 
         Args:
             query: Query text
@@ -150,80 +168,85 @@ class VectorStoreService:
             return []
 
         try:
-            collection = self._get_chroma_collection()
+            client = self._get_qdrant_client()
+            collection_name = os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
 
             # Generate query embedding
             query_embedding = await self.embedding_service.get_embedding(query)
 
-            # Search in Chroma collection
-            # Chroma returns distances, we need to convert to similarities
-            results = collection.query(
-                query_embeddings=[query_embedding],
-                n_results=min(top_k, 100),  # Get more results to filter by threshold
-                include=["documents", "metadatas", "distances"]
+            # Convert query embedding to list if needed
+            if hasattr(query_embedding, 'tolist'):
+                query_vector = query_embedding.tolist()
+            elif isinstance(query_embedding, list):
+                query_vector = query_embedding
+            else:
+                query_vector = list(query_embedding)
+
+            # Search in Qdrant collection
+            search_results = client.search(
+                collection_name=collection_name,
+                query_vector=query_vector,
+                limit=min(top_k, 100),  # Get more results to filter by threshold
+                with_payload=True,
+                with_vectors=False
             )
 
             # Convert to SearchResult objects
-            search_results = []
+            formatted_results = []
 
-            if results and results.get("ids") and results["ids"]:
-                ids = results["ids"][0]
-                documents = results["documents"][0] if results["documents"] else []
-                metadatas = results["metadatas"][0] if results["metadatas"] else []
-                distances = results["distances"][0] if results["distances"] else []
+            for result in search_results:
+                # Check if similarity meets threshold
+                similarity = result.score
 
-                for idx, doc_id in enumerate(ids):
-                    # Convert distance to similarity (Chroma uses cosine distance)
-                    # For cosine distance: similarity = 1 - distance
-                    similarity = 1.0 - distances[idx]
+                if similarity >= similarity_threshold:
+                    # Extract metadata and document content
+                    payload = result.payload or {}
+                    
+                    # Remove text_preview and document from metadata for the document
+                    doc_metadata = {
+                        k: v for k, v in payload.items() 
+                        if k not in ["text_preview", "document"]
+                    }
 
-                    if similarity >= similarity_threshold:
-                        # Extract metadata
-                        metadata = metadatas[idx] if idx < len(metadatas) else {}
+                    # Create Document object
+                    doc = Document(
+                        page_content=payload.get("chunk_text", payload.get("document", "")),
+                        metadata=doc_metadata
+                    )
 
-                        # Remove text_preview from metadata for the document
-                        doc_metadata = {k: v for k, v in metadata.items() if k != "text_preview"}
+                    # Create SearchResult
+                    search_result = SearchResult(
+                        document=doc,
+                        score=float(similarity)
+                    )
+                    formatted_results.append(search_result)
 
-                        # Create Document object
-                        doc = Document(
-                            page_content=documents[idx] if idx < len(documents) else "",
-                            metadata=doc_metadata
-                        )
-
-                        # Create SearchResult
-                        search_result = SearchResult(
-                            document=doc,
-                            score=float(similarity)
-                        )
-                        search_results.append(search_result)
-
-            logger.info(f"Found {len(search_results)} results for query (threshold: {similarity_threshold})")
-            return search_results
+            logger.info(f"Found {len(formatted_results)} results for query (threshold: {similarity_threshold})")
+            return formatted_results
 
         except Exception as e:
-            logger.error(f"Failed to search Chroma collection: {str(e)}")
+            logger.error(f"Failed to search Qdrant collection: {str(e)}")
             raise
 
     def get_stats(self) -> Dict[str, Any]:
         """
-        Get statistics about the Chroma collection
+        Get statistics about the Qdrant collection
 
         Returns:
             Dictionary with collection statistics
         """
         try:
-            collection = self._get_chroma_collection()
-            count = collection.count()
-
-            return {
-                'collection_name': collection.name,
-                'document_count': count,
-                'status': 'active',
+            from app.config.qdrant_config import get_collection_stats
+            
+            stats = get_collection_stats(collection_name=self.collection_name)
+            stats.update({
                 'dimension': self.embedding_service.get_embedding_dimension()
-            }
+            })
+            
+            return stats
 
         except Exception as e:
-            logger.error(f"Failed to get Chroma stats: {str(e)}")
+            logger.error(f"Failed to get Qdrant stats: {str(e)}")
             return {
                 'collection_name': self.collection_name or 'rag_documents',
                 'document_count': 0,
@@ -233,18 +256,21 @@ class VectorStoreService:
 
     def clear_index(self) -> None:
         """
-        Clear all documents from the Chroma collection
+        Clear all documents from the Qdrant collection
         """
         try:
-            from app.config.chroma_config import reset_collection
+            from app.config.qdrant_config import reset_collection
 
-            self._collection = reset_collection(collection_name=self.collection_name)
-            self._vector_store = None  # Reset cached vector store
+            vector_size = self.embedding_service.get_embedding_dimension()
+            self._collection = reset_collection(
+                collection_name=self.collection_name,
+                vector_size=vector_size
+            )
 
-            logger.info(f"Cleared Chroma collection: {self._collection.name}")
+            logger.info(f"Cleared Qdrant collection")
 
         except Exception as e:
-            logger.error(f"Failed to clear Chroma collection: {str(e)}")
+            logger.error(f"Failed to clear Qdrant collection: {str(e)}")
             raise
 
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a fully implemented **agentic-rag** system with conversational AI capabilities - a retrieval-augmented generation system with agentic capabilities for in-house chatbot applications. The system features complete RAG functionality with Japanese semantic chunking, Voyage AI embeddings, **ChromaDB vector storage**, and Google Gemini 2.5 Flash-Lite integration for intelligent conversational responses.
+This is a fully implemented **agentic-rag** system with conversational AI capabilities - a retrieval-augmented generation system with agentic capabilities for in-house chatbot applications. The system features complete RAG functionality with Japanese semantic chunking, Voyage AI embeddings, **Qdrant vector storage**, and Google Gemini 2.5 Flash-Lite integration for intelligent conversational responses.
 
 ## New: GitLab Code Integration
 
@@ -31,10 +31,10 @@ uv venv                    # Create new virtual environment
 
 ### Running Applications
 ```bash
-# Start ChromaDB service (required for vector storage)
-docker-compose up -d                                 # Start ChromaDB in background
-docker-compose down                                  # Stop ChromaDB
-docker-compose logs -f                               # View ChromaDB logs
+# Start Qdrant service (required for vector storage)
+docker-compose up -d                                 # Start Qdrant in background
+docker-compose down                                  # Stop Qdrant
+docker-compose logs -f                               # View Qdrant logs
 
 # Start the RAG API server
 uv run python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000  # Start with auto-reload
@@ -74,7 +74,7 @@ agentic-rag/
 │   ├── config/             # Configuration modules
 │   │   ├── __init__.py
 │   │   ├── logging_config.py
-│   │   └── chroma_config.py       # ChromaDB configuration
+│   │   └── qdrant_config.py       # Qdrant configuration
 │   │
 │   ├── dto/                # Data transfer objects (Pydantic models)
 │   │   ├── __init__.py
@@ -87,7 +87,7 @@ agentic-rag/
 │   │   ├── embeddings.py          # Voyage AI embedding generation
 │   │   ├── ingestion.py           # Document ingestion pipeline
 │   │   ├── semantic_splitter.py   # Japanese semantic chunking
-│   │   ├── vector_store.py        # ChromaDB vector storage
+│   │   ├── vector_store.py        # Qdrant vector storage
 │   │   ├── ast_splitter.py        # AST-based code chunking (NEW)
 │   │   └── code_ingestion.py      # GitLab code orchestration (NEW)
 │   │
@@ -108,11 +108,11 @@ agentic-rag/
 │       └── session_manager.py     # Conversation session management
 │
 ├── data/                   # Document storage directory
-├── chroma_data/           # ChromaDB data volume (created by Docker)
+├── qdrant_data/           # Qdrant data volume (created by Docker)
 ├── .env                    # Environment variables (API keys)
 ├── .env.example           # Environment variables template
 ├── .gitignore             # Git ignore rules
-├── docker-compose.yml     # ChromaDB Docker configuration
+├── docker-compose.yml     # Qdrant Docker configuration
 ├── CLAUDE.md               # Project documentation
 ├── pyproject.toml          # Project configuration and dependencies
 ├── README.md               # Project readme
@@ -126,7 +126,7 @@ agentic-rag/
 - `ingestion.py` - Multi-format document ingestion
 - `semantic_splitter.py` - Japanese-aware semantic text chunking
 - `embeddings.py` - Voyage AI 3.5 embedding generation
-- `vector_store.py` - ChromaDB storage and retrieval
+- `vector_store.py` - Qdrant storage and retrieval
 - `ast_splitter.py` - AST-based code parsing for Python/JS/TS/PHP (NEW)
 - `code_ingestion.py` - GitLab code orchestration (NEW)
 
@@ -147,43 +147,6 @@ agentic-rag/
 - `ingestion.py` - Document ingestion API models
 - `chat.py` - Chat API models
 - `code_ingestion.py` - GitLab API request/response models (NEW)
-│   ├── config/             # Configuration modules
-│   │   ├── __init__.py
-│   │   ├── logging_config.py
-│   │   └── chroma_config.py # ChromaDB configuration
-│   ├── dto/                # Data transfer objects
-│   │   ├── __init__.py
-│   │   ├── ingestion.py    # Ingestion API models
-│   │   └── chat.py         # Chat API models
-│   ├── rag/                # RAG system modules (document processing only)
-│   │   ├── __init__.py
-│   │   ├── embeddings.py   # Voyage AI embedding generation
-│   │   ├── ingestion.py    # Document ingestion and processing
-│   │   ├── semantic_splitter.py  # Japanese semantic chunking
-│   │   └── vector_store.py # ChromaDB vector storage and retrieval
-│   ├── routers/            # API route definitions
-│   │   ├── __init__.py
-│   │   ├── ingestion.py    # Document ingestion endpoints
-│   │   └── chat.py         # Chat and conversation endpoints
-│   ├── services/           # Business logic services
-│   │   ├── __init__.py
-│   │   ├── rag_service.py  # RAG operations service
-│   │   └── chatbot_service.py  # Chat and LLM integration service
-│   └── utils/              # Utility modules
-│       ├── __init__.py
-│       └── session_manager.py  # Conversation session management
-├── data/                   # Document storage directory
-├── chroma_data/           # ChromaDB data volume (created by Docker)
-├── .env                    # Environment variables (API keys)
-├── .env.example           # Environment variables template
-├── .gitignore             # Git ignore rules
-├── docker-compose.yml     # ChromaDB Docker configuration
-├── CLAUDE.md               # Project documentation
-├── pyproject.toml          # Project configuration and dependencies
-├── README.md               # Project readme
-├── uv.lock                 # Locked dependency versions
-└── .python-version         # Python version specification
-```
 
 ## Project Architecture
 
@@ -192,7 +155,7 @@ This project implements a complete **agentic RAG system with conversational AI**
 ### Core RAG Components (✅ Fully Implemented)
 - **Document Processing** (`app/rag/ingestion.py`): Multi-format file ingestion with Japanese semantic chunking
 - **Embedding Generation** (`app/rag/embeddings.py`): Voyage AI 3.5 embedding configuration
-- **Vector Database** (`app/rag/vector_store.py`): FAISS index with multiple index types (flat, IVF, HNSW)
+- **Vector Database** (`app/rag/vector_store.py`): Qdrant vector database with similarity search
 - **Semantic Splitter** (`app/rag/semantic_splitter.py`): Japanese-aware text chunking
 
 ### Chatbot System (✅ Fully Implemented)
@@ -226,9 +189,9 @@ This project implements a complete **agentic RAG system with conversational AI**
 - **Project Status**: Production-ready with comprehensive features
 - **Environment Setup**: Requires both `VOYAGE_API_KEY` and `GOOGLE_API_KEY` in `.env` file
 - **Data Source**: Place documents in `/data` folder - supports Excel, PDF, Word, text files
-- **Vector Storage**: ChromaDB with Docker for managed vector storage and retrieval
+- **Vector Storage**: Qdrant with Docker for managed vector storage and retrieval
 - **Stateless Processing**: Each query processed independently without session memory
-- **Docker Integration**: ChromaDB runs in container (port 8001) with persistent volume
+- **Docker Integration**: Qdrant runs in container (port 6333) with persistent volume
 
 ## New: GitLab Integration (v1.2.0)
 
@@ -306,10 +269,11 @@ VOYAGE_API_KEY=your_voyage_api_key_here
 # Google Gemini API Configuration
 GOOGLE_API_KEY=your_google_api_key_here
 
-# ChromaDB Configuration
-CHROMA_HOST=localhost
-CHROMA_PORT=8001
-CHROMA_COLLECTION_NAME=rag_documents
+# Qdrant Configuration
+QDRANT_HOST=localhost
+QDRANT_PORT=6333
+QDRANT_COLLECTION_NAME=rag_documents
+QDRANT_API_KEY=your_qdrant_api_key_here  # Optional for local setup
 ```
 
 ### GitLab Configuration (Optional)
@@ -339,8 +303,7 @@ SEMANTIC_TOKEN_OVERLAP=50
 - **llama-index**: Core RAG framework
 - **llama-index-embeddings-voyageai**: Voyage AI 3.5 embeddings
 - **llama-index-readers-file**: Multi-format document readers
-- **chromadb**: ChromaDB vector database
-- **langchain-chroma**: LangChain ChromaDB integration
+- **qdrant-client**: Qdrant vector database client
 - **voyageai**: Voyage AI client
 
 ### GitLab Integration (NEW)
@@ -365,11 +328,11 @@ SEMANTIC_TOKEN_OVERLAP=50
 
 - **uv**: Modern Python package management with fast dependency resolution
 - **FastAPI**: High-performance async web API development with auto-documentation
-- **Docker + Docker Compose**: Containerized ChromaDB for easy deployment
+- **Docker + Docker Compose**: Containerized Qdrant for easy deployment
 - **LlamaIndex**: Production-ready RAG framework for document processing and retrieval
 - **LangChain + Gemini 2.5 Flash-Lite**: State-of-the-art conversational AI with streaming support
 - **Voyage AI 3.5**: Advanced embeddings optimized for multilingual semantic search
-- **ChromaDB**: Modern vector database with built-in similarity search
+- **Qdrant**: High-performance vector database with built-in similarity search
 - **Tree-sitter**: Fast and accurate AST parsing for code analysis
 - **GitLab API**: Direct integration with GitLab repositories
 - **Separation of Concerns**: Clean architecture separating RAG processing from chatbot logic
@@ -381,20 +344,19 @@ SEMANTIC_TOKEN_OVERLAP=50
    uv sync
    ```
 
-2. **Configure API keys and Chroma settings**:
+2. **Configure API keys and Qdrant settings**:
    ```bash
    # Edit .env file
    VOYAGE_API_KEY=your_voyage_api_key_here
    GOOGLE_API_KEY=your_google_api_key_here  # Required for chat functionality
 
-   # Chroma configuration (optional - defaults to localhost:8001)
-   CHROMA_HOST=localhost
-   CHROMA_PORT=8001
-   CHROMA_AUTH_TOKEN=rag_token_123
-   CHROMA_COLLECTION_NAME=rag_documents
+   # Qdrant configuration (optional - defaults to localhost:6333)
+   QDRANT_HOST=localhost
+   QDRANT_PORT=6333
+   QDRANT_COLLECTION_NAME=rag_documents
    ```
 
-3. **Start ChromaDB service**:
+3. **Start Qdrant service**:
    ```bash
    docker-compose up -d
    ```

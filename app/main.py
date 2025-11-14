@@ -38,7 +38,7 @@ app = FastAPI(
 
     * **Japanese Document Processing**: Semantic chunking optimized for Japanese text
     * **Voyage AI 3.5 Embeddings**: State-of-the-art text embeddings
-    * **ChromaDB Vector Storage**: Docker-containerized vector database with similarity search
+    * **Qdrant Vector Storage**: Docker-containerized vector database with similarity search
     * **Multi-format Support**: PDF, Word, Excel, text, images, and more
     * **Conversational AI**: Chat with documents using Google Gemini 2.5 Flash-Lite
     * **Stateless Processing**: Each query processed independently without session memory
@@ -118,7 +118,7 @@ async def api_info():
         "features": [
             "Japanese semantic document chunking",
             "Voyage AI 3.5 embeddings",
-            "ChromaDB vector storage",
+            "Qdrant vector storage",
             "Multi-format document processing",
             "Conversational AI with Google Gemini 2.5 Flash-Lite",
             "Stateless chat processing",

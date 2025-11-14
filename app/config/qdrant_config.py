@@ -1,0 +1,177 @@
+"""
+Qdrant configuration module for RAG system.
+
+This module provides configuration and initialization for Qdrant client.
+"""
+
+import os
+from typing import Optional, Dict, Any
+import qdrant_client
+from qdrant_client.http import models
+from qdrant_client.http.models import Distance, VectorParams, PointStruct
+from qdrant_client.http.exceptions import UnexpectedResponse
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def get_qdrant_client(
+    host: Optional[str] = None,
+    port: Optional[int] = None,
+    api_key: Optional[str] = None
+) -> qdrant_client.QdrantClient:
+    """
+    Initialize and return a Qdrant client.
+
+    Args:
+        host: Qdrant server host (default: from QDRANT_HOST env var)
+        port: Qdrant server port (default: from QDRANT_PORT env var)
+        api_key: API key (default: from QDRANT_API_KEY env var)
+
+    Returns:
+        qdrant_client.QdrantClient: Initialized Qdrant client
+    """
+    # Get configuration from environment variables or parameters
+    host = host or os.getenv("QDRANT_HOST", "localhost")
+    port = port or int(os.getenv("QDRANT_PORT", "6333"))
+    api_key = api_key or os.getenv("QDRANT_API_KEY", None)
+
+    # Create Qdrant client
+    if api_key:
+        client = qdrant_client.QdrantClient(
+            host=host,
+            port=port,
+            api_key=api_key,
+            timeout=30
+        )
+    else:
+        client = qdrant_client.QdrantClient(
+            host=host,
+            port=port,
+            timeout=30
+        )
+
+    collection_name = os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
+    logger.info(f"Qdrant client initialized - Host: {host}:{port}, Collection: {collection_name}")
+
+    return client
+
+
+def get_or_create_collection(
+    client: Optional[qdrant_client.QdrantClient] = None,
+    collection_name: Optional[str] = None,
+    vector_size: int = 1536
+) -> models.CollectionInfo:
+    """
+    Get or create a Qdrant collection.
+
+    Args:
+        client: Qdrant client instance (will be created if None)
+        collection_name: Name of the collection (default: from QDRANT_COLLECTION_NAME env var)
+        vector_size: Size of the embedding vectors (default: 1536)
+
+    Returns:
+        models.CollectionInfo: The collection info
+    """
+    if client is None:
+        client = get_qdrant_client()
+
+    collection_name = collection_name or os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
+
+    try:
+        # Try to get existing collection
+        collection_info = client.get_collection(collection_name=collection_name)
+        logger.info(f"Using existing collection: {collection_name}")
+        return collection_info
+    except UnexpectedResponse:
+        # Create new collection if it doesn't exist
+        client.create_collection(
+            collection_name=collection_name,
+            vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE)
+        )
+        logger.info(f"Created new collection: {collection_name}")
+        
+        # Return collection info
+        return client.get_collection(collection_name=collection_name)
+    except Exception as e:
+        logger.error(f"Error handling collection: {e}")
+        raise
+
+
+def reset_collection(
+    client: Optional[qdrant_client.QdrantClient] = None,
+    collection_name: Optional[str] = None,
+    vector_size: int = 1536
+) -> models.CollectionInfo:
+    """
+    Delete and recreate a collection.
+
+    Args:
+        client: Qdrant client instance (will be created if None)
+        collection_name: Name of the collection (default: from QDRANT_COLLECTION_NAME env var)
+        vector_size: Size of the embedding vectors
+
+    Returns:
+        models.CollectionInfo: New collection info
+    """
+    if client is None:
+        client = get_qdrant_client()
+
+    collection_name = collection_name or os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
+
+    try:
+        # Delete existing collection
+        client.delete_collection(collection_name=collection_name)
+        logger.info(f"Deleted collection: {collection_name}")
+    except UnexpectedResponse:
+        logger.warning(f"Collection {collection_name} does not exist")
+    except Exception as e:
+        logger.warning(f"Could not delete collection (might not exist): {e}")
+
+    # Create new collection
+    client.create_collection(
+        collection_name=collection_name,
+        vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE)
+    )
+    logger.info(f"Created new collection: {collection_name}")
+
+    # Return collection info
+    return client.get_collection(collection_name=collection_name)
+
+
+def get_collection_stats(
+    client: Optional[qdrant_client.QdrantClient] = None,
+    collection_name: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get statistics for the Qdrant collection.
+
+    Args:
+        client: Qdrant client instance (will be created if None)
+        collection_name: Name of the collection (default: from QDRANT_COLLECTION_NAME env var)
+
+    Returns:
+        dict: Collection statistics
+    """
+    if client is None:
+        client = get_qdrant_client()
+
+    collection_name = collection_name or os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
+
+    try:
+        collection_info = client.get_collection(collection_name=collection_name)
+        points_count = client.count(collection_name=collection_name).count
+        
+        return {
+            "collection_name": collection_name,
+            "document_count": points_count,
+            "status": "active",
+            "vectors_config": collection_info.config.params.vectors.to_dict() if collection_info.config.params.vectors else None
+        }
+    except Exception as e:
+        logger.error(f"Error getting collection stats: {e}")
+        return {
+            "collection_name": collection_name,
+            "document_count": 0,
+            "status": "not_found"
+        }
