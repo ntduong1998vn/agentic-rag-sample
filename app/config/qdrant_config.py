@@ -52,23 +52,20 @@ def get_qdrant_client(
             timeout=30
         )
 
-    collection_name = settings.vector_store.collection_name
-    logger.info(f"Qdrant client initialized - Host: {host}:{port}, Collection: {collection_name}")
-
     return client
 
 
 def get_or_create_collection(
-    client: Optional[qdrant_client.QdrantClient] = None,
-    collection_name: Optional[str] = None,
-    vector_size: int = 1536
+    collection_name: str,
+    vector_size: int = 1536,
+    client: Optional[qdrant_client.QdrantClient] = None
 ) -> models.CollectionInfo:
     """
     Get or create a Qdrant collection.
 
     Args:
         client: Qdrant client instance (will be created if None)
-        collection_name: Name of the collection (default: from QDRANT_COLLECTION_NAME env var)
+        collection_name: Name of the collection
         vector_size: Size of the embedding vectors (default: 1536)
 
     Returns:
@@ -76,8 +73,6 @@ def get_or_create_collection(
     """
     if client is None:
         client = get_qdrant_client()
-
-    collection_name = collection_name or settings.qdrant_collection_name
 
     try:
         # Try to get existing collection
@@ -100,16 +95,16 @@ def get_or_create_collection(
 
 
 def reset_collection(
-    client: Optional[qdrant_client.QdrantClient] = None,
-    collection_name: Optional[str] = None,
-    vector_size: int = 1536
+    collection_name: str,
+    vector_size: int = 1536,
+    client: Optional[qdrant_client.QdrantClient] = None
 ) -> models.CollectionInfo:
     """
     Delete and recreate a collection.
 
     Args:
         client: Qdrant client instance (will be created if None)
-        collection_name: Name of the collection (default: from QDRANT_COLLECTION_NAME env var)
+        collection_name: Name of the collection
         vector_size: Size of the embedding vectors
 
     Returns:
@@ -117,8 +112,6 @@ def reset_collection(
     """
     if client is None:
         client = get_qdrant_client()
-
-    collection_name = collection_name or settings.qdrant_collection_name
 
     try:
         # Delete existing collection
@@ -141,23 +134,21 @@ def reset_collection(
 
 
 def get_collection_stats(
-    client: Optional[qdrant_client.QdrantClient] = None,
-    collection_name: Optional[str] = None
+    collection_name: str,
+    client: Optional[qdrant_client.QdrantClient] = None
 ) -> Dict[str, Any]:
     """
     Get statistics for the Qdrant collection.
 
     Args:
         client: Qdrant client instance (will be created if None)
-        collection_name: Name of the collection (default: from QDRANT_COLLECTION_NAME env var)
+        collection_name: Name of the collection
 
     Returns:
         dict: Collection statistics
     """
     if client is None:
         client = get_qdrant_client()
-
-    collection_name = collection_name or settings.qdrant_collection_name
 
     try:
         collection_info = client.get_collection(collection_name=collection_name)

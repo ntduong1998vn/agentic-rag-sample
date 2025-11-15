@@ -48,6 +48,25 @@ class GitLabRAGService:
 
         logger.info("Initialized GitLabRAGService")
 
+    def _get_repository_collection_name(self) -> str:
+        """
+        Generate a collection name based on the repository name.
+        
+        Returns:
+            Collection name safe for Qdrant usage
+        """
+        try:
+            project_info = self.gitlab_connector.get_project_info()
+            repository_name = project_info.get('name', 'unknown')
+            # Create a safe collection name by replacing special characters
+            safe_name = repository_name.replace('-', '_').replace(' ', '_').lower()
+            # Add repository ID to ensure uniqueness
+            collection_name = f"repo_{safe_name}_{project_info.get('id', 'unknown')}"
+            return collection_name
+        except Exception as e:
+            logger.warning(f"Could not generate repository collection name: {e}")
+            return "rag_documents_default"
+
     async def ingest_repository(self, ref: str = 'main') -> Dict[str, Any]:
         """
         Ingest entire GitLab repository into vector store.
@@ -62,6 +81,14 @@ class GitLabRAGService:
         logger.info(f"Starting repository ingestion (ref: {ref})")
 
         try:
+            # Get repository info for collection naming
+            project_info = self.gitlab_connector.get_project_info()
+            collection_name = self._get_repository_collection_name()
+            logger.info(f"Using collection name: {collection_name}")
+
+            # Create vector store service with repository-specific collection
+            repository_vector_store = VectorStoreService(collection_name=collection_name)
+
             # Validate configuration
             is_valid, message = self.code_ingestion_service.validate_configuration()
             if not is_valid:
@@ -78,9 +105,9 @@ class GitLabRAGService:
                 }
 
             # Check for existing ingestion
-            existing_count = self.get_repository_stats().get('total_chunks', 0)
+            existing_count = repository_vector_store.get_stats().get('document_count', 0)
             if existing_count > 0:
-                logger.warning(f"Repository already has {existing_count} chunks. Use update or clear first.")
+                logger.warning(f"Collection {collection_name} already has {existing_count} chunks. Use update or clear first.")
                 return {
                     'success': False,
                     'message': f"Repository already has {existing_count} chunks. Use update or clear first.",
@@ -102,13 +129,14 @@ class GitLabRAGService:
             # Get chunks and add to vector store
             chunks = result['chunks']
             if chunks:
-                logger.info(f"Adding {len(chunks)} chunks to vector store...")
-                await self.vector_store_service.add_documents(chunks)
+                logger.info(f"Adding {len(chunks)} chunks to vector store collection: {collection_name}")
+                await repository_vector_store.add_documents(chunks)
                 logger.info("Successfully added chunks to vector store")
 
             # Calculate final statistics
             stats = result['stats']
-            stats['repository'] = self.gitlab_connector.get_project_info()
+            stats['repository'] = project_info
+            stats['collection_name'] = collection_name
             stats['duration_seconds'] = (stats['end_time'] - stats['start_time']).total_seconds()
 
             logger.info(f"Repository ingestion completed: {stats['processed_chunks']} chunks "
@@ -118,7 +146,8 @@ class GitLabRAGService:
                 'success': True,
                 'message': result['message'],
                 'stats': stats,
-                'repository_info': self.gitlab_connector.get_project_info(),
+                'repository_info': project_info,
+                'collection_name': collection_name,
             }
 
         except Exception as e:
@@ -167,8 +196,15 @@ class GitLabRAGService:
                     'total_results': 0,
                 }
 
-            # Search in vector store
-            results = await self.vector_store_service.search(
+            # Get repository info and collection name
+            project_info = self.gitlab_connector.get_project_info()
+            collection_name = self._get_repository_collection_name()
+            
+            # Create repository-specific vector store service
+            repository_vector_store = VectorStoreService(collection_name=collection_name)
+
+            # Search in repository-specific vector store
+            results = await repository_vector_store.search(
                 query=query,
                 top_k=top_k,
                 similarity_threshold=similarity_threshold
@@ -181,6 +217,7 @@ class GitLabRAGService:
                     'results': [],
                     'total_results': 0,
                     'query': query,
+                    'collection_name': collection_name,
                     'filters': {
                         'language': language,
                         'file_path': file_path,
@@ -215,7 +252,7 @@ class GitLabRAGService:
                     'end_line': metadata.get('end_line'),
                 })
 
-            logger.info(f"Found {len(formatted_results)} results after filtering")
+            logger.info(f"Found {len(formatted_results)} results after filtering in collection {collection_name}")
 
             return {
                 'success': True,
@@ -225,6 +262,7 @@ class GitLabRAGService:
                 'query': query,
                 'top_k': top_k,
                 'similarity_threshold': similarity_threshold,
+                'collection_name': collection_name,
                 'filters': {
                     'language': language,
                     'file_path': file_path,
@@ -252,8 +290,15 @@ class GitLabRAGService:
         try:
             logger.info("Retrieving repository statistics")
 
+            # Get repository info and collection name
+            project_info = self.gitlab_connector.get_project_info()
+            collection_name = self._get_repository_collection_name()
+            
+            # Create repository-specific vector store service
+            repository_vector_store = VectorStoreService(collection_name=collection_name)
+            
             # Get vector store stats
-            vector_stats = self.vector_store_service.get_stats()
+            vector_stats = repository_vector_store.get_stats()
 
             # If no documents, return empty stats
             if vector_stats['document_count'] == 0:
@@ -263,7 +308,8 @@ class GitLabRAGService:
                     'languages': {},
                     'chunk_types': {},
                     'total_lines': 0,
-                    'repository_info': None,
+                    'repository_info': project_info,
+                    'collection_name': collection_name,
                 }
 
             # For now, return basic stats. In a complete implementation,
@@ -274,7 +320,8 @@ class GitLabRAGService:
                 'languages': {},   # Would be tracked in registry
                 'chunk_types': {}, # Would be tracked in registry
                 'total_lines': 0,  # Would be tracked in registry
-                'repository_info': None,  # Would be stored during ingestion
+                'repository_info': project_info,
+                'collection_name': collection_name,
             }
 
         except Exception as e:
@@ -287,6 +334,7 @@ class GitLabRAGService:
                 'chunk_types': {},
                 'total_lines': 0,
                 'repository_info': None,
+                'collection_name': None,
             }
 
     def list_ingested_files(self) -> Dict[str, Any]:
@@ -324,18 +372,26 @@ class GitLabRAGService:
         try:
             logger.info("Clearing all code chunks from vector store")
 
+            # Get repository info and collection name
+            project_info = self.gitlab_connector.get_project_info()
+            collection_name = self._get_repository_collection_name()
+            
+            # Create repository-specific vector store service
+            repository_vector_store = VectorStoreService(collection_name=collection_name)
+
             # Get current stats
             stats_before = self.get_repository_stats()
 
-            # Clear the vector store (this clears everything, not just code)
-            self.vector_store_service.clear_index()
+            # Clear the repository-specific vector store
+            repository_vector_store.clear_index()
 
-            logger.info("Vector store cleared")
+            logger.info(f"Vector store collection {collection_name} cleared")
 
             return {
                 'success': True,
-                'message': f"Successfully cleared {stats_before['total_chunks']} code chunks",
+                'message': f"Successfully cleared {stats_before['total_chunks']} code chunks from collection {collection_name}",
                 'cleared_chunks': stats_before['total_chunks'],
+                'collection_name': collection_name,
             }
 
         except Exception as e:
@@ -344,6 +400,7 @@ class GitLabRAGService:
                 'success': False,
                 'message': f"Failed to clear code chunks: {str(e)}",
                 'cleared_chunks': 0,
+                'collection_name': None,
             }
 
     def validate_setup(self) -> Tuple[bool, str]:

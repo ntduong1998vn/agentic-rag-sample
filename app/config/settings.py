@@ -46,8 +46,6 @@ class Settings(BaseSettings):
     qdrant_host: str = Field("localhost", description="Qdrant server host")
     qdrant_port: int = Field(6333, description="Qdrant server port")
     qdrant_api_key: Optional[str] = Field(None, description="Qdrant API key")
-    qdrant_collection_name: str = Field("rag_documents", description="Qdrant collection name")
-    
     # ChromaDB Configuration
     chroma_host: str = Field("localhost", description="ChromaDB server host")
     chroma_port: int = Field(8001, description="ChromaDB server port")
