@@ -94,7 +94,7 @@ class VectorStoreService:
         try:
             client = self._get_qdrant_client()
             collection_info = self._get_collection()
-            collection_name = settings.qdrant_collection_name
+            collection_name = self.collection_name
 
             # Generate embeddings for all documents
             texts = [doc.page_content for doc in documents]
@@ -169,7 +169,7 @@ class VectorStoreService:
 
         try:
             client = self._get_qdrant_client()
-            collection_name = settings.qdrant_collection_name
+            collection_name = self.collection_name
 
             # Generate query embedding
             query_embedding = await self.embedding_service.get_embedding(query)

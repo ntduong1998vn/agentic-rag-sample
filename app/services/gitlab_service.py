@@ -430,8 +430,6 @@ class GitLabRAGService:
             # Validate vector store
             if not settings.qdrant_host:
                 logger.warning("Qdrant host not set, using default: localhost")
-            if not settings.chroma_host:
-                logger.warning("Chroma host not set, using default: localhost")
 
             return True, "All components configured correctly"
 
