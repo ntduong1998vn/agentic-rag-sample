@@ -21,7 +21,7 @@ from app.config.settings import settings
 target_metadata = Base.metadata
 
 # Override the sqlalchemy.url with centralized settings
-config.set_main_option("sqlalchemy.url", settings.database.url)
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
