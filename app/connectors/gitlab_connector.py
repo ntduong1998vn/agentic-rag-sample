@@ -21,6 +21,7 @@ from langchain_core.documents import Document
 
 # Local imports
 from app.config.logging_config import get_logger
+from app.config.settings import settings
 
 # Configure logging
 logger = get_logger(__name__)
@@ -64,19 +65,20 @@ class GitLabConnector:
         Initialize GitLab connector.
 
         Args:
-            gitlab_url: GitLab instance URL (defaults to GITLAB_URL env var)
-            gitlab_token: GitLab personal access token (GITLAB_TOKEN env var)
-            project_id: GitLab project ID (GITLAB_PROJECT_ID env var)
+            gitlab_url: GitLab instance URL (defaults to settings)
+            gitlab_token: GitLab personal access token (defaults to settings)
+            project_id: GitLab project ID (defaults to settings)
         """
-        self.gitlab_url = gitlab_url or os.environ.get('GITLAB_URL', 'https://gitlab.com')
-        self.gitlab_token = gitlab_token or os.environ.get('GITLAB_TOKEN')
-        self.project_id = project_id or os.environ.get('GITLAB_PROJECT_ID')
+        # Use centralized settings, fallback to parameters
+        self.gitlab_url = gitlab_url or settings.gitlab_url
+        self.gitlab_token = gitlab_token or settings.gitlab_token
+        self.project_id = project_id or settings.gitlab_project_id
 
         if not self.gitlab_token:
-            raise ValueError("GitLab token not provided. Set GITLAB_TOKEN environment variable.")
+            raise ValueError("GitLab token not provided. Set gitlab_token in settings or pass as parameter.")
 
         if not self.project_id:
-            raise ValueError("GitLab project ID not provided. Set GITLAB_PROJECT_ID environment variable.")
+            raise ValueError("GitLab project ID not provided. Set gitlab_project_id in settings or pass as parameter.")
 
         # Initialize GitLab client
         try:
@@ -405,16 +407,19 @@ def get_gitlab_connector() -> GitLabConnector:
 
 def validate_gitlab_config() -> bool:
     """
-    Validate GitLab configuration in environment.
+    Validate GitLab configuration using centralized settings.
 
     Returns:
         True if configuration is valid
     """
-    required_vars = ['GITLAB_TOKEN', 'GITLAB_PROJECT_ID']
-    missing_vars = [var for var in required_vars if not os.environ.get(var)]
-
-    if missing_vars:
-        logger.warning(f"Missing GitLab configuration: {', '.join(missing_vars)}")
+    required_configs = [settings.gitlab_token, settings.gitlab_project_id]
+    if not all(required_configs):
+        missing_configs = []
+        if not settings.gitlab_token:
+            missing_configs.append("gitlab_token")
+        if not settings.gitlab_project_id:
+            missing_configs.append("gitlab_project_id")
+        logger.warning(f"Missing GitLab configuration: {', '.join(missing_configs)}")
         return False
 
     return True

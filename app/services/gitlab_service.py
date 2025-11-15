@@ -15,6 +15,7 @@ from app.rag.code_ingestion import get_code_ingestion_service
 from app.rag.embeddings import get_embedding_service, EmbeddingService
 from app.rag.vector_store import get_vector_store_service, VectorStoreService
 from app.config.logging_config import get_logger
+from app.config.settings import settings
 
 # Configure logging
 logger = get_logger(__name__)
@@ -354,11 +355,11 @@ class GitLabRAGService:
         """
         try:
             # Validate GitLab configuration
-            if not os.environ.get('GITLAB_TOKEN'):
-                return False, "GITLAB_TOKEN environment variable not set"
+            if not settings.gitlab_token:
+                return False, "GitLab token not configured in settings"
 
-            if not os.environ.get('GITLAB_PROJECT_ID'):
-                return False, "GITLAB_PROJECT_ID environment variable not set"
+            if not settings.gitlab_project_id:
+                return False, "GitLab project ID not configured in settings"
 
             # Test GitLab connectivity
             is_valid, message = self.code_ingestion_service.validate_configuration()
@@ -366,15 +367,14 @@ class GitLabRAGService:
                 return False, message
 
             # Validate embedding service
-            if not os.environ.get('VOYAGE_API_KEY'):
-                return False, "VOYAGE_API_KEY environment variable not set"
+            if not settings.voyage_api_key:
+                return False, "Voyage API key not configured in settings"
 
             # Validate vector store
-            # Validate vector store
-            if not os.environ.get('QDRANT_HOST'):
-                logger.warning("QDRANT_HOST not set, using default: localhost")
-            if not os.environ.get('CHROMA_HOST'):
-                logger.warning("CHROMA_HOST not set, using default: localhost")
+            if not settings.qdrant_host:
+                logger.warning("Qdrant host not set, using default: localhost")
+            if not settings.chroma_host:
+                logger.warning("Chroma host not set, using default: localhost")
 
             return True, "All components configured correctly"
 

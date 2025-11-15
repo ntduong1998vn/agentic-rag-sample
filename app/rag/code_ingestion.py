@@ -16,6 +16,7 @@ from app.connectors.gitlab_connector import get_gitlab_connector, GitLabConnecto
 from app.rag.ast_splitter import create_ast_splitter, ASTCodeSplitter
 from langchain_core.documents import Document
 from app.config.logging_config import get_logger
+from app.config.settings import settings
 
 # Configure logging
 logger = get_logger(__name__)
@@ -280,12 +281,12 @@ def validate_code_ingestion_setup() -> Tuple[bool, str]:
         Tuple of (is_valid, message)
     """
     try:
-        # Check environment variables
-        if not os.environ.get('GITLAB_TOKEN'):
-            return False, "GITLAB_TOKEN environment variable not set"
+        # Check configuration using centralized settings
+        if not settings.gitlab_token:
+            return False, "GitLab token not configured in settings"
 
-        if not os.environ.get('GITLAB_PROJECT_ID'):
-            return False, "GITLAB_PROJECT_ID environment variable not set"
+        if not settings.gitlab_project_id:
+            return False, "GitLab project ID not configured in settings"
 
         # Test service
         service = get_code_ingestion_service()
