@@ -4,13 +4,14 @@ Qdrant configuration module for RAG system.
 This module provides configuration and initialization for Qdrant client.
 """
 
-import os
 from typing import Optional, Dict, Any
 import qdrant_client
 from qdrant_client.http import models
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
 from qdrant_client.http.exceptions import UnexpectedResponse
 import logging
+
+from .settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +32,10 @@ def get_qdrant_client(
     Returns:
         qdrant_client.QdrantClient: Initialized Qdrant client
     """
-    # Get configuration from environment variables or parameters
-    host = host or os.getenv("QDRANT_HOST", "localhost")
-    port = port or int(os.getenv("QDRANT_PORT", "6333"))
-    api_key = api_key or os.getenv("QDRANT_API_KEY", None)
+    # Get configuration from centralized settings or parameters
+    host = host or settings.qdrant_host
+    port = port or settings.qdrant_port
+    api_key = api_key or settings.qdrant_api_key
 
     # Create Qdrant client
     if api_key:
@@ -51,7 +52,7 @@ def get_qdrant_client(
             timeout=30
         )
 
-    collection_name = os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
+    collection_name = settings.vector_store.collection_name
     logger.info(f"Qdrant client initialized - Host: {host}:{port}, Collection: {collection_name}")
 
     return client
@@ -76,7 +77,7 @@ def get_or_create_collection(
     if client is None:
         client = get_qdrant_client()
 
-    collection_name = collection_name or os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
+    collection_name = collection_name or settings.qdrant_collection_name
 
     try:
         # Try to get existing collection
@@ -117,7 +118,7 @@ def reset_collection(
     if client is None:
         client = get_qdrant_client()
 
-    collection_name = collection_name or os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
+    collection_name = collection_name or settings.qdrant_collection_name
 
     try:
         # Delete existing collection
@@ -156,7 +157,7 @@ def get_collection_stats(
     if client is None:
         client = get_qdrant_client()
 
-    collection_name = collection_name or os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
+    collection_name = collection_name or settings.qdrant_collection_name
 
     try:
         collection_info = client.get_collection(collection_name=collection_name)

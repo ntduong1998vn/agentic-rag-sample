@@ -1,4 +1,3 @@
-import os
 import asyncio
 from typing import List, Dict, Any, Optional, AsyncGenerator
 import time
@@ -12,6 +11,7 @@ from langchain.prompts import ChatPromptTemplate
 from app.services.rag_service import get_rag_service, RAGService
 from app.dto.chat import ChatRequest, ChatResponse, SourceDocument
 from app.config.logging_config import get_logger
+from app.config.settings import settings
 
 # Configure logging
 logger = get_logger(__name__)
@@ -37,9 +37,9 @@ class ChatbotService:
     def _initialize_llm(self) -> ChatGoogleGenerativeAI:
         """Initialize Gemini 2.5 Flash-Lite model"""
         try:
-            api_key = os.getenv("GOOGLE_API_KEY")
+            api_key = settings.google_api_key
             if not api_key:
-                raise ValueError("GOOGLE_API_KEY environment variable is not set")
+                raise ValueError("GOOGLE_API_KEY is not set in settings")
 
             llm = ChatGoogleGenerativeAI(
                 model="gemini-2.0-flash-exp",  # Gemini 2.5 Flash-Lite equivalent

@@ -6,7 +6,6 @@ This module provides a service layer for document storage and retrieval using Qd
 
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-import os
 import logging
 import numpy as np
 from qdrant_client import QdrantClient
@@ -16,6 +15,7 @@ from langchain_core.documents import Document
 from app.rag.embeddings import get_embedding_service
 from app.config.logging_config import get_logger
 from app.config.qdrant_config import get_or_create_collection
+from app.config.settings import settings
 
 # Configure logging
 logger = get_logger(__name__)
@@ -94,7 +94,7 @@ class VectorStoreService:
         try:
             client = self._get_qdrant_client()
             collection_info = self._get_collection()
-            collection_name = os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
+            collection_name = settings.qdrant_collection_name
 
             # Generate embeddings for all documents
             texts = [doc.page_content for doc in documents]
@@ -169,7 +169,7 @@ class VectorStoreService:
 
         try:
             client = self._get_qdrant_client()
-            collection_name = os.getenv("QDRANT_COLLECTION_NAME", "rag_documents")
+            collection_name = settings.qdrant_collection_name
 
             # Generate query embedding
             query_embedding = await self.embedding_service.get_embedding(query)

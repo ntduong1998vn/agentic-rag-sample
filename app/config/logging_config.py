@@ -5,13 +5,12 @@ This module provides unified logging configuration with both console and file ou
 including log rotation and structured formatting for easy debugging.
 """
 
-import os
 import sys
 import logging
 import logging.handlers
 from pathlib import Path
 from typing import Optional
-from datetime import datetime
+from .settings import settings
 
 
 # Global configuration
@@ -19,11 +18,11 @@ _logging_initialized = False
 
 
 def setup_logging(
-    log_level: str = "DEBUG",
-    log_file_path: str = "logs/app.log",
+    log_level: Optional[str] = None,
+    log_file_path: Optional[str] = None,
     max_bytes: int = 10 * 1024 * 1024,  # 10MB
     backup_count: int = 14,  # 14 days retention
-    enable_console: bool = True
+    enable_console: Optional[bool] = None
 ) -> None:
     """
     Setup centralized logging configuration
@@ -39,6 +38,11 @@ def setup_logging(
 
     if _logging_initialized:
         return
+
+    # Use settings values as defaults
+    log_level = log_level or settings.log_level
+    log_file_path = log_file_path or settings.log_file_path
+    enable_console = enable_console if enable_console is not None else settings.log_console
 
     # Convert string log level to logging constant
     numeric_level = getattr(logging, log_level.upper(), logging.DEBUG)
@@ -115,16 +119,7 @@ def get_logger(name: str) -> logging.Logger:
     """
     # Ensure logging is initialized
     if not _logging_initialized:
-        # Get configuration from environment variables
-        log_level = os.getenv("LOG_LEVEL", "DEBUG")
-        log_file_path = os.getenv("LOG_FILE_PATH", "logs/app.log")
-        enable_console = os.getenv("LOG_CONSOLE", "true").lower() == "true"
-
-        setup_logging(
-            log_level=log_level,
-            log_file_path=log_file_path,
-            enable_console=enable_console
-        )
+        setup_logging()
 
     return logging.getLogger(name)
 
@@ -200,14 +195,6 @@ def log_error_with_context(logger: logging.Logger, error: Exception, context: st
 # Convenience function for quick logging setup
 def initialize_logging():
     """
-    Initialize logging with default settings from environment variables
+    Initialize logging with default settings from centralized configuration
     """
-    log_level = os.getenv("LOG_LEVEL", "DEBUG")
-    log_file_path = os.getenv("LOG_FILE_PATH", "logs/app.log")
-    enable_console = os.getenv("LOG_CONSOLE", "true").lower() == "true"
-
-    setup_logging(
-        log_level=log_level,
-        log_file_path=log_file_path,
-        enable_console=enable_console
-    )
+    setup_logging()

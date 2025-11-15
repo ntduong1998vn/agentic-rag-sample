@@ -1,15 +1,11 @@
-import os
 from typing import List, Optional
 from langchain_core.embeddings import Embeddings
-from dotenv import load_dotenv
 from voyageai.client import Client
 from app.config.logging_config import get_logger
+from app.config.settings import settings
 
 # Configure logging
 logger = get_logger(__name__)
-
-# Load environment variables
-load_dotenv()
 
 
 class VoyageEmbeddings(Embeddings):
@@ -17,7 +13,7 @@ class VoyageEmbeddings(Embeddings):
     
     def __init__(self, model_name: str = "voyage-code-3", api_key: Optional[str] = None):
         self.model_name = model_name
-        self.api_key = api_key or os.getenv("VOYAGE_API_KEY")
+        self.api_key = api_key or settings.voyage_api_key
         
         if not self.api_key:
             raise ValueError("VOYAGE_API_KEY environment variable is required")
@@ -71,10 +67,10 @@ class EmbeddingService:
 
         Args:
             model_name: Voyage AI model name (default: voyage-code-3)
-            api_key: Voyage AI API key (from env if not provided)
+            api_key: Voyage AI API key (from settings if not provided)
         """
         self.model_name = model_name
-        self.api_key = api_key or os.getenv("VOYAGE_API_KEY")
+        self.api_key = api_key or settings.voyage_api_key
 
         if not self.api_key:
             raise ValueError("VOYAGE_API_KEY environment variable is required")

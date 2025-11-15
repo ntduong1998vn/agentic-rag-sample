@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   qdrant:
     image: qdrant/qdrant:latest
@@ -17,30 +16,15 @@ services:
 
   postgres:
     image: postgres:15-alpine
-    container_name: vectoradmin-db
+    container_name: postgres-rag
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=vectoradmin
-      - POSTGRES_USER=vectoradmin
-      - POSTGRES_PASSWORD=vectoradmin123
-    restart: unless-stopped
-
-  vectoradmin:
-    image: mintplexlabs/vectoradmin:latest
-    container_name: vectoradmin
-    ports:
-      - "5000:3000"
-    environment:
-      - SERVER_PORT=3000
-      - JWT_SECRET=${VECTORADMIN_JWT_SECRET:-supersecret}
-      - DATABASE_CONNECTION_STRING=postgresql://vectoradmin:vectoradmin123@postgres:5432/vectoradmin
-      - QDRANT_SERVER_URL=http://qdrant:6333
-    depends_on:
-      - qdrant
-      - postgres
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     restart: unless-stopped
 
 volumes:
