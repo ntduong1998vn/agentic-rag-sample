@@ -8,6 +8,7 @@ Supports Python, JavaScript, TypeScript, and PHP.
 
 import os
 import re
+import uuid
 from typing import List, Dict, Any, Optional, Tuple, Union
 from pathlib import Path
 from dataclasses import dataclass
@@ -779,7 +780,7 @@ class ASTCodeSplitter:
                         'end_line': chunk.end_line,
                         'language': chunk.language,
                         'chunk_metadata': chunk.metadata,
-                        'id': f"{file_path}_{chunk.type}_{chunk.name}_{i}"
+                        'id': str(uuid.uuid4())
                     }
                 )
                 chunked_docs.append(chunk_doc)

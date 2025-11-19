@@ -107,11 +107,12 @@ class VectorStoreService:
                 # Create unique ID for each document
                 doc_id = doc.metadata.get('id', f"doc_{idx}_{hash(doc.page_content) % 10000}")
                 
-                # Prepare metadata
+                # Prepare metadata - exclude text_preview, chunk_name, and error
                 metadata = doc.metadata or {}
-                metadata.update({
-                    "text_preview": doc.page_content[:200]  # Store text preview
-                })
+                metadata = {
+                    k: v for k, v in metadata.items() 
+                    if k not in ["text_preview", "chunk_name", "error"]
+                }
 
                 # Convert embedding to list if it's a numpy array
                 embedding_vector = embeddings[idx]

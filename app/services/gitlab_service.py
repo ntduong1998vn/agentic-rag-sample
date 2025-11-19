@@ -97,6 +97,8 @@ class GitLabRAGService:
                     'message': message,
                     'stats': {
                         'total_files': 0,
+                        'processed_files': 0,
+                        'failed_files': 0,
                         'processed_chunks': 0,
                         'start_time': start_time,
                         'end_time': datetime.now(),
@@ -113,6 +115,8 @@ class GitLabRAGService:
                     'message': f"Repository already has {existing_count} chunks. Use update or clear first.",
                     'stats': {
                         'total_files': 0,
+                        'processed_files': 0,
+                        'failed_files': 0,
                         'processed_chunks': existing_count,
                         'start_time': start_time,
                         'end_time': datetime.now(),
@@ -157,6 +161,8 @@ class GitLabRAGService:
                 'message': f"Ingestion failed: {str(e)}",
                 'stats': {
                     'total_files': 0,
+                    'processed_files': 0,
+                    'failed_files': 0,
                     'processed_chunks': 0,
                     'start_time': start_time,
                     'end_time': datetime.now(),

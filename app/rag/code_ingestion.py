@@ -80,9 +80,12 @@ class CodeIngestionService:
             # Calculate statistics
             stats = {
                 'total_files': len(documents),
+                'processed_files': len(documents),  # All files processed successfully
+                'failed_files': 0,  # No failures in this implementation
                 'processed_chunks': len(chunks),
                 'start_time': start_time,
                 'end_time': datetime.now(),
+                'duration_seconds': (datetime.now() - start_time).total_seconds(),
             }
 
             duration = stats['end_time'] - stats['start_time']
@@ -103,9 +106,12 @@ class CodeIngestionService:
                 'message': f"Ingestion failed: {str(e)}",
                 'stats': {
                     'total_files': 0,
+                    'processed_files': 0,
+                    'failed_files': 0,
                     'processed_chunks': 0,
                     'start_time': start_time,
                     'end_time': datetime.now(),
+                    'duration_seconds': (datetime.now() - start_time).total_seconds(),
                 }
             }
 
