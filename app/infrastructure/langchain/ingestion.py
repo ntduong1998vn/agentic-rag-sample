@@ -13,10 +13,10 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Local imports
-from app.rag.embeddings import get_embedding_service
+from app.infrastructure.embeddings import get_embedding_service
 from app.infrastructure.langchain.vectorstore import get_vector_store_service
 from app.connectors.gitlab_connector import get_gitlab_connector, GitLabConnector
-from app.rag.ast_splitter import create_ast_splitter, ASTCodeSplitter
+from app.infrastructure.ast_splitter import create_ast_splitter, ASTCodeSplitter
 from app.config import get_logger, settings
 
 # Configure logging

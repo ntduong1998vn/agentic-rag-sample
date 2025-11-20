@@ -12,7 +12,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.models import PointStruct, SearchRequest
 from langchain_core.documents import Document
-from app.rag.embeddings import get_embedding_service
+from app.infrastructure.embeddings import get_embedding_service
 from app.config import get_logger, get_or_create_collection, get_collection_stats, reset_collection, get_qdrant_client
 from app.config import settings
 

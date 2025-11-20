@@ -8,7 +8,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
 
 # Local imports
-from app.services.rag_service import get_rag_service, RAGService
+from app.application.rag.service import get_rag_service, RAGService
 from app.domain.chat.models import ChatRequest, ChatResponse, SourceDocument
 from app.config import get_logger, settings
 

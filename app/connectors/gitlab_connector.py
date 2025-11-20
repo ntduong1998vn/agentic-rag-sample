@@ -20,8 +20,7 @@ from gitlab.v4.objects import Project
 from langchain_core.documents import Document
 
 # Local imports
-from app.config.logging_config import get_logger
-from app.config.settings import settings
+from app.config import get_logger, settings
 
 # Configure logging
 logger = get_logger(__name__)

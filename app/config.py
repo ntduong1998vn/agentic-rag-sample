@@ -201,8 +201,8 @@ def setup_logging(
     )
 
     # File handler
-    import logging.handlers
-    file_handler = logging.handlers.RotatingFileHandler(
+    from logging.handlers import RotatingFileHandler
+    file_handler = RotatingFileHandler(
         filename=log_file_path,
         maxBytes=max_bytes,
         backupCount=backup_count,
