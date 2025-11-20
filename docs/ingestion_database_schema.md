@@ -148,10 +148,13 @@ GROUP BY ingestion_type, source_identifier, file_status;
 ### Creating a new ingestion job
 
 ```python
-from app.models.ingestion import IngestJob
-from app.models.database import SessionLocal
+from app.domain.files.entities import IngestJob
+from app.infrastructure.database.database import SessionLocal
+from app.infrastructure.database.repository import IngestJobRepository
 
 db = SessionLocal()
+repo = IngestJobRepository(db)
+
 job = IngestJob(
     process_id="api-ingest-001",
     ingestion_type="api",
@@ -159,14 +162,16 @@ job = IngestJob(
     source_metadata={"endpoint": "/v1/data", "auth_token": "token"},
     total_files=100
 )
-db.add(job)
-db.commit()
+created_job = repo.create(job)
 ```
 
 ### Tracking file processing
 
 ```python
-from app.models.ingestion import IngestFile
+from app.domain.files.entities import IngestFile
+from app.infrastructure.database.repository import IngestFileRepository
+
+file_repo = IngestFileRepository(db)
 
 file_record = IngestFile(
     job_id=job.id,
@@ -175,8 +180,7 @@ file_record = IngestFile(
     file_size=1024,
     checksum="abc123..."
 )
-db.add(file_record)
-db.commit()
+created_file = file_repo.create(file_record)
 ```
 
 ### Querying active jobs

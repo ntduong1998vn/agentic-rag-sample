@@ -2,11 +2,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# RAG service imports
-from app.routers.ingestion import router as ingestion_router
-from app.routers.chat import router as chat_router
-from app.routers.code_ingestion import router as code_router
-from app.config.logging_config import initialize_logging, get_logger
+# New structure imports
+from app.api.routes_chat import router as chat_router
+from app.api.routes_files import router as files_router
+from app.config import initialize_logging, get_logger
 
 # Initialize centralized logging
 initialize_logging()
@@ -50,10 +49,8 @@ app = FastAPI(
     ## Endpoints
 
     * **Chat**: `/chat` - Q&A with document retrieval and LLM generation
-    * **Ingestion**: Process documents from `/data` directory
-    * **Document Management**: List and manage processed documents
+    * **Files**: `/files` - Document and code ingestion and management
     * **Health Checks**: System monitoring and status reporting
-    * **GitLab Code**: `/code` - Ingest and search GitLab repositories
     """,
 
     version="1.2.0",
@@ -70,9 +67,8 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(ingestion_router)
 app.include_router(chat_router)
-app.include_router(code_router)
+app.include_router(files_router)
 
 # Root endpoint
 @app.get("/")
@@ -88,8 +84,7 @@ async def root():
             "docs": "/docs",
             "health": "/health",
             "chat": "/chat",
-            "ingestion": "/ingest",
-            "code": "/code"
+            "files": "/files"
         }
     }
 
@@ -140,14 +135,7 @@ async def api_info():
         ],
         "endpoints": {
             "chat": "/chat",
-            "ingestion": "/ingest",
-            "documents": "/ingest/documents",
-            "stats": "/ingest/stats",
-            "code": "/code",
-            "code_ingestion": "/code/ingest",
-            "code_search": "/code/search",
-            "code_stats": "/code/stats",
-            "code_files": "/code/files"
+            "files": "/files"
         }
     }
 
