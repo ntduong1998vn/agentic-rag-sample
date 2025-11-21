@@ -1,37 +1,14 @@
-from typing import List, Optional, Dict, Any
+from typing import List
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database.database import get_db
-from app.infrastructure.database.chatbot_repository import SQLAlchemyChatbotRepository
+from app.infrastructure.database.repositories.chatbot_repository import SQLAlchemyChatbotRepository
 from app.application.chatbot.service import ChatbotService
+from app.api.schemas.chatbot import ChatbotCreate, ChatbotUpdate, ChatbotResponse
 
 router = APIRouter(prefix="/chatbots", tags=["chatbots"])
-
-# --- Schemas ---
-
-class ChatbotCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255)
-    model_name: str = Field(..., min_length=1, max_length=255)
-    llm_config: Dict[str, Any] = Field(default_factory=dict)
-
-class ChatbotUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    model_name: Optional[str] = Field(None, min_length=1, max_length=255)
-    llm_config: Optional[Dict[str, Any]] = None
-
-class ChatbotResponse(BaseModel):
-    id: uuid.UUID
-    name: str
-    model_name: str
-    llm_config: Dict[str, Any]
-    created_at: Any # Using Any to avoid datetime serialization issues if not handled elsewhere, but Pydantic handles datetime fine usually.
-    updated_at: Any
-
-    class Config:
-        from_attributes = True
 
 # --- Dependencies ---
 

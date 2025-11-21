@@ -191,6 +191,164 @@ class ChatbotModel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
+    # Relationship to knowledge base
+    knowledge_base = relationship("KnowledgeBaseModel", back_populates="chatbot", uselist=False, cascade="all, delete-orphan")
+
     __table_args__ = (
         Index('idx_chatbots_name', 'name'),
+    )
+
+
+class KnowledgeBaseModel(Base):
+    """
+    ORM model for chatbot knowledge base.
+    
+    Maps to the knowledge_bases table and represents a chatbot's document collection.
+    """
+    __tablename__ = "knowledge_bases"
+    
+    # Primary key
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Foreign key to chatbot (one-to-one)
+    chatbot_id = Column(UUID(as_uuid=True), ForeignKey('chatbots.id', ondelete='CASCADE'),
+                       nullable=False, unique=True, index=True)
+    
+    # Qdrant collection information
+    collection_name = Column(String(255), nullable=False, unique=True, index=True)
+    vector_dimension = Column(Integer, nullable=False, default=1024)
+    
+    # Statistics
+    total_documents = Column(Integer, default=0, nullable=False)
+    total_chunks = Column(Integer, default=0, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(),
+                       onupdate=func.now(), nullable=False)
+    
+    # Relationships
+    chatbot = relationship("ChatbotModel", back_populates="knowledge_base")
+    documents = relationship("DocumentModel", back_populates="knowledge_base", cascade="all, delete-orphan")
+    
+    # Constraints
+    __table_args__ = (
+        CheckConstraint("total_documents >= 0", name='valid_documents_count'),
+        CheckConstraint("total_chunks >= 0", name='valid_chunks_count'),
+        CheckConstraint("vector_dimension > 0", name='valid_vector_dimension'),
+        Index('idx_kb_chatbot_id', 'chatbot_id'),
+        Index('idx_kb_collection_name', 'collection_name'),
+    )
+
+
+class DocumentModel(Base):
+    """
+    ORM model for tracking documents in a knowledge base.
+    
+    Maps to the documents table and tracks document processing status.
+    """
+    __tablename__ = "documents"
+    
+    # Primary key
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Foreign key to knowledge base
+    knowledge_base_id = Column(UUID(as_uuid=True), ForeignKey('knowledge_bases.id', ondelete='CASCADE'),
+                              nullable=False, index=True)
+    
+    # File information
+    file_path = Column(String(1000), nullable=False)
+    file_name = Column(String(500), nullable=False)
+    file_size = Column(BigInteger, nullable=False)
+    file_type = Column(String(100), nullable=False)
+    checksum = Column(String(128), nullable=False, index=True)
+    
+    # Processing status
+    status = Column(String(20), nullable=False, default='pending', index=True)
+    error_message = Column(Text, nullable=True)
+    chunks_count = Column(Integer, default=0, nullable=False)
+    
+    # Processing timing
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(),
+                       onupdate=func.now(), nullable=False)
+    
+    # Relationships
+    knowledge_base = relationship("KnowledgeBaseModel", back_populates="documents")
+    chunks = relationship("DocumentChunkModel", back_populates="document", cascade="all, delete-orphan")
+    
+    # Constraints
+    __table_args__ = (
+        # Status validation
+        CheckConstraint("status IN ('pending', 'processing', 'completed', 'failed', 'skipped')",
+                       name='valid_document_status'),
+        
+        # File size validation
+        CheckConstraint("file_size >= 0", name='valid_document_file_size'),
+        
+        # Chunks count validation
+        CheckConstraint("chunks_count >= 0", name='valid_document_chunks_count'),
+        
+        # Timing validation
+        CheckConstraint("(started_at IS NULL AND completed_at IS NULL) OR "
+                       "(started_at IS NOT NULL AND completed_at IS NULL) OR "
+                       "(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at >= started_at)",
+                       name='valid_document_timing'),
+        
+        # Unique constraint: one document per file path per knowledge base
+        Index('idx_documents_kb_path', 'knowledge_base_id', 'file_path', unique=True),
+        
+        # Indexes for common queries
+        Index('idx_documents_kb_id', 'knowledge_base_id'),
+        Index('idx_documents_status', 'status'),
+        Index('idx_documents_kb_status', 'knowledge_base_id', 'status'),
+        Index('idx_documents_checksum', 'checksum'),
+    )
+
+
+class DocumentChunkModel(Base):
+    """
+    ORM model for document chunks.
+    
+    Maps to the document_chunks table and stores chunk text and vector references.
+    """
+    __tablename__ = "document_chunks"
+    
+    # Primary key
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Foreign key to document
+    document_id = Column(UUID(as_uuid=True), ForeignKey('documents.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
+    
+    # Chunk information
+    chunk_index = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    chunk_size = Column(Integer, nullable=False)
+    
+    # Vector reference
+    vector_id = Column(String(255), nullable=False, index=True)
+    
+    # Timestamp
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Relationship
+    document = relationship("DocumentModel", back_populates="chunks")
+    
+    # Constraints
+    __table_args__ = (
+        # Validation
+        CheckConstraint("chunk_index >= 0", name='valid_chunk_index'),
+        CheckConstraint("chunk_size > 0", name='valid_chunk_size'),
+        
+        # Unique constraint: one chunk index per document
+        Index('idx_chunks_document_chunk', 'document_id', 'chunk_index', unique=True),
+        
+        # Indexes
+        Index('idx_chunks_document_id', 'document_id'),
+        Index('idx_chunks_vector_id', 'vector_id'),
     )

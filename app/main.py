@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes_chat import router as chat_router
 from app.api.routes_files import router as files_router
 from app.api.routes_chatbot import router as chatbot_router
+from app.api.routes_knowledge_base import router as kb_router
 from app.config import initialize_logging, get_logger
 
 # Initialize centralized logging
@@ -51,6 +52,7 @@ app = FastAPI(
 
     * **Chat**: `/chat` - Q&A with document retrieval and LLM generation
     * **Files**: `/files` - Document and code ingestion and management
+    * **Chatbots**: `/chatbots` - Chatbot management and knowledge base ingestion
     * **Health Checks**: System monitoring and status reporting
     """,
 
@@ -71,6 +73,7 @@ app.add_middleware(
 app.include_router(chat_router)
 app.include_router(files_router)
 app.include_router(chatbot_router)
+app.include_router(kb_router)
 
 # Root endpoint
 @app.get("/")
