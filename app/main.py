@@ -3,8 +3,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # New structure imports
-from app.api.routes_chat import router as chat_router
-from app.api.routes_files import router as files_router
 from app.api.routes_chatbot import router as chatbot_router
 from app.api.routes_knowledge_base import router as kb_router
 from app.config import initialize_logging, get_logger
@@ -70,8 +68,6 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(chat_router)
-app.include_router(files_router)
 app.include_router(chatbot_router)
 app.include_router(kb_router)
 
