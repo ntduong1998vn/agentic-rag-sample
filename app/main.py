@@ -36,7 +36,7 @@ app = FastAPI(
     ## Features
 
     * **Japanese Document Processing**: Semantic chunking optimized for Japanese text
-    * **Voyage AI 3.5 Embeddings**: State-of-the-art text embeddings
+    * **Google Gemini Embeddings**: State-of-the-art text embeddings (gemini-embedding-001)
     * **Qdrant Vector Storage**: Docker-containerized vector database with similarity search
     * **Multi-format Support**: PDF, Word, Excel, text, images, and more
     * **Conversational AI**: Chat with documents using Google Gemini 2.5 Flash-Lite
@@ -114,7 +114,7 @@ async def api_info():
         "description": "Retrieval-augmented generation system with agentic capabilities",
         "features": [
             "Japanese semantic document chunking",
-            "Voyage AI 3.5 embeddings",
+            "Google Gemini embeddings (gemini-embedding-001)",
             "Qdrant vector storage",
             "Multi-format document processing",
             "Conversational AI with Google Gemini 2.5 Flash-Lite",

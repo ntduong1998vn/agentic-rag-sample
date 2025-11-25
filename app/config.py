@@ -30,7 +30,6 @@ class Settings(BaseSettings):
     )
 
     # API Keys
-    voyage_api_key: str = Field("", description="Voyage AI API key")
     google_api_key: str = Field("", description="Google Gemini API key")
     openai_api_key: str = Field("", description="OpenAI API key")
 
@@ -85,9 +84,20 @@ def get_qdrant_client(
     api_key = api_key or settings.qdrant_api_key
 
     if api_key:
-        return qdrant_client.QdrantClient(host=host, port=port, api_key=api_key, timeout=30)
+        return qdrant_client.QdrantClient(
+            host=host, 
+            port=port, 
+            api_key=api_key, 
+            timeout=30,
+            prefer_grpc=False  # Use HTTP instead of gRPC to avoid SSL issues
+        )
     else:
-        return qdrant_client.QdrantClient(host=host, port=port, timeout=30)
+        return qdrant_client.QdrantClient(
+            host=host, 
+            port=port, 
+            timeout=30,
+            prefer_grpc=False  # Use HTTP instead of gRPC to avoid SSL issues
+        )
 
 
 def get_or_create_collection(

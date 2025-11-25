@@ -10,11 +10,14 @@ import uuid
 from pathlib import Path
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import UnstructuredExcelLoader
+from langchain_community.document_loaders import TextLoader
 
 from app.domain.knowledge_base.entities import Document, DocumentChunk, KnowledgeBase
 from app.domain.knowledge_base.ports import VectorStorePort
 from app.infrastructure.embeddings import get_embedding_service
 from app.config import settings
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +40,6 @@ class DocumentProcessor:
             chunk_size=settings.semantic_max_tokens_per_chunk,
             chunk_overlap=settings.semantic_token_overlap,
             length_function=len,
-            is_separator_regex=False,
         )
     
     async def process_document(self, document: Document, knowledge_base: KnowledgeBase) -> List[DocumentChunk]:
@@ -118,7 +120,7 @@ class DocumentProcessor:
             logger.error(f"Error processing document {document.id}: {e}")
             raise
             
-    def _load_content(self, file_path: str) -> str:
+    def _load_content(self, file_path: str) -> list:
         """
         Load text content from file.
         
@@ -126,11 +128,17 @@ class DocumentProcessor:
         TODO: Add support for PDF, DOCX, etc. using LangChain loaders.
         """
         path = Path(file_path)
+        ext = path.suffix.lower()
         
-        # Simple text loading for now
+        # Load based on file extension
         try:
-            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                return f.read()
+            if ext in {".txt", ".md", ".json", ".csv"}:
+                return TextLoader(str(path)).load()
+            elif ext in {".xlxs", ".xls"}:
+                return UnstructuredExcelLoader(str(path), mode='elements').load()
+            else:
+                logger.warning(f"Unsupported file type {ext}, falling back to raw text read.")
+                return TextLoader(str(path)).load()
         except Exception as e:
             logger.error(f"Error reading file {file_path}: {e}")
             raise

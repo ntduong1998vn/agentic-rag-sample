@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a fully implemented **agentic-rag** system with conversational AI capabilities - a retrieval-augmented generation system with agentic capabilities for in-house chatbot applications. The system features complete RAG functionality with Japanese semantic chunking, Voyage AI embeddings, **Qdrant vector storage**, and Google Gemini 2.5 Flash-Lite integration for intelligent conversational responses.
+This is a fully implemented **agentic-rag** system with conversational AI capabilities - a retrieval-augmented generation system with agentic capabilities for in-house chatbot applications. The system features complete RAG functionality with Japanese semantic chunking, Google Gemini embeddings, **Qdrant vector storage**, and Google Gemini 2.5 Flash-Lite integration for intelligent conversational responses.
 
 ## Major Updates: v1.2.0+ Features
 
@@ -107,7 +107,7 @@ agentic-rag/
 │   │   ├── __init__.py
 │   │   ├── ast_splitter.py        # AST-based code parsing for 4 languages
 │   │   ├── code_ingestion.py      # GitLab code orchestration
-│   │   ├── embeddings.py          # Voyage AI embedding generation
+│   │   ├── embeddings.py          # Google Gemini embedding generation
 │   │   ├── ingestion.py           # Document ingestion pipeline
 │   │   ├── semantic_splitter.py   # Japanese semantic chunking
 │   │   └── vector_store.py        # Qdrant vector storage and retrieval
@@ -159,7 +159,7 @@ agentic-rag/
 **Document Processing** (`app/rag/`):
 - `ingestion.py` - Multi-format document ingestion with statistics tracking
 - `semantic_splitter.py` - Japanese-aware semantic text chunking (currently using basic splitting)
-- `embeddings.py` - Voyage AI 3.5 embedding generation with LangChain integration
+- `embeddings.py` - Google Gemini embedding generation with LangChain integration
 - `vector_store.py` - Qdrant vector storage with repository-specific collections
 - `ast_splitter.py` - AST-based code parsing for Python/JS/TS/PHP with rich metadata
 - `code_ingestion.py` - GitLab code orchestration with hierarchical chunking
@@ -197,7 +197,7 @@ This project implements a complete **agentic RAG system with conversational AI**
 
 ### Core RAG Components (✅ Fully Implemented)
 - **Document Processing** (`app/rag/ingestion.py`): Multi-format file ingestion with comprehensive statistics
-- **Embedding Generation** (`app/rag/embeddings.py`): Voyage AI 3.5 embedding with LangChain integration
+- **Embedding Generation** (`app/rag/embeddings.py`): Google Gemini embedding with LangChain integration
 - **Vector Database** (`app/rag/vector_store.py`): Qdrant vector database with repository-specific collections
 - **Semantic Splitter** (`app/rag/semantic_splitter.py`): Japanese-aware text chunking (Note: Currently using basic splitting, semantic features disabled)
 - **Database Integration** (`app/models/`): PostgreSQL ingestion tracking with SQLAlchemy ORM
@@ -239,7 +239,7 @@ This project implements a complete **agentic RAG system with conversational AI**
 - **Current Status**: Fully implemented RAG + Chatbot system with conversational AI capabilities (v1.2.0+)
 - **API Documentation**: Auto-generated at `/docs` endpoint when server is running
 - **Project Status**: Production-ready with comprehensive features
-- **Environment Setup**: Requires both `VOYAGE_API_KEY` and `GOOGLE_API_KEY` in `.env` file
+- **Environment Setup**: Requires `GOOGLE_API_KEY` in `.env` file
 - **Data Source**: Place documents in `/data` folder - supports Excel, PDF, Word, text files
 - **Vector Storage**: Qdrant with Docker for managed vector storage and retrieval
 - **Stateless Processing**: Each query processed independently without session memory
@@ -339,10 +339,7 @@ The system now includes **GitLab connector** with AST-based code chunking. This 
 
 ### Core Configuration (Required)
 ```bash
-# Voyage AI API Configuration
-VOYAGE_API_KEY=your_voyage_api_key_here
-
-# Google Gemini API Configuration
+# Google Gemini API Configuration (for both LLM and embeddings)
 GOOGLE_API_KEY=your_google_api_key_here
 
 # Qdrant Configuration (Vector Database)
@@ -385,10 +382,8 @@ SEMANTIC_TOKEN_OVERLAP=50
 
 ### RAG Components
 - **llama-index**: Core RAG framework
-- **llama-index-embeddings-voyageai**: Voyage AI 3.5 embeddings
 - **llama-index-readers-file**: Multi-format document readers
 - **qdrant-client**: Qdrant vector database client
-- **voyageai**: Voyage AI client
 
 ### Database Components (NEW)
 - **sqlalchemy**: PostgreSQL ORM and database operations
@@ -421,7 +416,7 @@ SEMANTIC_TOKEN_OVERLAP=50
 - **Docker + Docker Compose**: Containerized Qdrant for easy deployment
 - **LlamaIndex**: Production-ready RAG framework for document processing and retrieval
 - **LangChain + Gemini 2.5 Flash-Lite**: State-of-the-art conversational AI with streaming support
-- **Voyage AI 3.5**: Advanced embeddings optimized for multilingual semantic search
+- **Google Gemini**: Unified platform for LLM and embeddings (gemini-embedding-001, 2.0-flash-exp)
 - **Qdrant**: High-performance vector database with built-in similarity search
 - **Tree-sitter**: Fast and accurate AST parsing for code analysis
 - **GitLab API**: Direct integration with GitLab repositories
@@ -437,8 +432,7 @@ SEMANTIC_TOKEN_OVERLAP=50
 2. **Configure API keys and database settings**:
    ```bash
    # Edit .env file with your API keys
-   VOYAGE_API_KEY=your_voyage_api_key_here
-   GOOGLE_API_KEY=your_google_api_key_here  # Required for chat functionality
+   GOOGLE_API_KEY=your_google_api_key_here  # Required for both chat and embeddings
 
    # Database configuration
    DATABASE_URL=postgresql://postgres:password@localhost:5432/rag_db
@@ -663,7 +657,7 @@ Visit http://localhost:8000/docs for interactive API documentation with:
 ## Known Issues and Areas for Improvement
 
 ### Current Issues
-1. **Semantic Splitter**: Currently using basic `RecursiveCharacterTextSplitter` instead of true semantic chunking with Voyage AI embeddings
+1. **Semantic Splitter**: Currently using basic `RecursiveCharacterTextSplitter` instead of true semantic chunking
 2. **Collection Naming**: GitLab service collection naming could be more robust for edge cases
 3. **Statistics Placeholders**: Some GitLab service methods return placeholder data instead of actual statistics
 
@@ -677,7 +671,7 @@ Visit http://localhost:8000/docs for interactive API documentation with:
 7. **Advanced Filtering**: Enhanced metadata filtering in search results
 
 ### Technology Debt
-- Semantic splitter needs to be re-enabled with proper Voyage AI integration
+- Semantic splitter needs to be re-enabled with proper semantic integration
 - Some GitLab service methods need completion with actual implementation
 - Collection management could be more robust for edge cases
 

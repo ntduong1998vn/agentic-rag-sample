@@ -30,7 +30,7 @@ class KnowledgeBase:
     """
     chatbot_id: uuid.UUID
     collection_name: str
-    vector_dimension: int = 1024
+    vector_dimension: int = 1536
     total_documents: int = 0
     total_chunks: int = 0
     id: uuid.UUID = field(default_factory=uuid.uuid4)

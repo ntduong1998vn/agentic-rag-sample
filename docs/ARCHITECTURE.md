@@ -7,7 +7,7 @@
 ## Key Features
 
 - 🇯🇵 **Japanese Document Processing**: Semantic chunking optimized for Japanese text
-- 🚀 **Voyage AI 3.5 Embeddings**: State-of-the-art text embeddings
+- 🚀 **Google Gemini Embeddings**: State-of-the-art text embeddings (gemini-embedding-001)
 - 🗄️ **Qdrant Vector Storage**: Docker-containerized vector database with similarity search
 - 📄 **Multi-format Support**: PDF, Word, Excel, text, images, and more
 - 💬 **Conversational AI**: Chat with documents using Google Gemini 2.5 Flash-Lite
@@ -28,8 +28,7 @@
 
 ### AI/ML Stack
 - **LangChain**: Framework for LLM applications
-- **Google Gemini**: Large language models (2.0-flash-exp, 1.5-pro, 1.5-flash)
-- **Voyage AI**: Text embedding models (voyage-3.5)
+- **Google Gemini**: Large language models and embeddings (2.0-flash-exp, 1.5-pro, gemini-embedding-001)
 - **Qdrant**: Vector database for semantic search
 
 ### Data Storage
@@ -112,7 +111,7 @@ infrastructure/
 │   ├── models.py          # SQLAlchemy ORM models
 │   ├── repository.py      # Generic repository implementation
 │   └── chatbot_repository.py  # Chatbot-specific repository
-├── embeddings.py          # Voyage AI embedding service
+├── embeddings.py          # Google Gemini embedding service
 ├── ast_splitter.py        # AST-based code chunking
 └── langchain/             # LangChain integrations (if any)
 ```
@@ -120,7 +119,7 @@ infrastructure/
 **Responsibilities:**
 - Database access (PostgreSQL via SQLAlchemy)
 - Vector database operations (Qdrant)
-- External API integrations (Voyage AI, Google Gemini)
+- External API integrations (Google Gemini)
 - File processing and document parsing
 - Repository pattern implementations
 
@@ -170,7 +169,7 @@ graph LR
     B --> C[File Processing]
     C --> D[Text Extraction]
     D --> E[Semantic Chunking]
-    E --> F[Generate Embeddings<br/>Voyage AI]
+    E --> F[Generate Embeddings<br/>Google Gemini]
     F --> G[Store in Qdrant]
     G --> H[Store Metadata<br/>PostgreSQL]
     H --> I[Response]
@@ -230,7 +229,7 @@ Stores chatbot configurations.
 ### Qdrant Collections
 
 Vector embeddings are stored in Qdrant collections with:
-- **Vector dimension**: 1536 (Voyage AI 3.5)
+- **Vector dimension**: 1536 (Google Gemini gemini-embedding-001)
 - **Distance metric**: Cosine similarity
 - **Metadata**: Document source, chunk text, timestamps
 
@@ -254,7 +253,6 @@ QDRANT_PORT=6333
 QDRANT_API_KEY=  # Optional
 
 # AI Services
-VOYAGE_API_KEY=your_voyage_key
 GOOGLE_API_KEY=your_gemini_key
 
 # GitLab (Optional)

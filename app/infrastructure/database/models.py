@@ -216,7 +216,7 @@ class KnowledgeBaseModel(Base):
     
     # Qdrant collection information
     collection_name = Column(String(255), nullable=False, unique=True, index=True)
-    vector_dimension = Column(Integer, nullable=False, default=1024)
+    vector_dimension = Column(Integer, nullable=False, default=1536)
     
     # Statistics
     total_documents = Column(Integer, default=0, nullable=False)

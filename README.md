@@ -5,7 +5,7 @@ A powerful Retrieval-Augmented Generation (RAG) system with agentic capabilities
 ## 🌟 Features
 
 - 🇯🇵 **Japanese Document Processing** - Semantic chunking optimized for Japanese text
-- 🚀 **Voyage AI 3.5 Embeddings** - State-of-the-art text embeddings
+- 🚀 **Google Gemini Embeddings** - State-of-the-art text embeddings (gemini-embedding-001)
 - 🗄️ **Qdrant Vector Storage** - Docker-containerized vector database
 - 📄 **Multi-format Support** - PDF, Word, Excel, Markdown, images, and more
 - 💬 **Conversational AI** - Chat with documents using Google Gemini
@@ -34,7 +34,6 @@ cp .env.example .env
 
 # Edit .env and add your API keys
 # - POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
-# - VOYAGE_API_KEY
 # - GOOGLE_API_KEY
 
 # Install dependencies
@@ -94,8 +93,7 @@ app/
 - **Alembic** - Database migrations
 - **Qdrant** - Vector database
 - **LangChain** - LLM application framework
-- **Google Gemini** - Large language models
-- **Voyage AI** - Text embeddings
+- **Google Gemini** - Large language models and embeddings
 
 ## 🔧 Common Tasks
 
@@ -263,7 +261,6 @@ QDRANT_HOST=localhost
 QDRANT_PORT=6333
 
 # AI Services
-VOYAGE_API_KEY=your_voyage_key
 GOOGLE_API_KEY=your_gemini_key
 
 # GitLab (Optional)

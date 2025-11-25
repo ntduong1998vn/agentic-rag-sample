@@ -61,7 +61,7 @@ class KnowledgeBaseService:
             
         # Create new knowledge base
         collection_name = f"kb_{str(chatbot_id).replace('-', '_')}"
-        vector_dimension = 1024  # Voyage-3 dimension
+        vector_dimension = 1536  # Google Gemini embedding-001 dimension
         
         # Ensure vector store collection exists
         await self.vector_store.create_collection(
