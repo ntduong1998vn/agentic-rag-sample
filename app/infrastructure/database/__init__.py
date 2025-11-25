@@ -11,4 +11,6 @@ __all__ = [
     "drop_all_tables",
     "IngestJobModel",
     "IngestFileModel",
+    "DocumentModel",
+    "DocumentChunkModel"
 ]

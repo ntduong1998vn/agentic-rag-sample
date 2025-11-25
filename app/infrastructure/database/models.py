@@ -78,29 +78,8 @@ class IngestJobModel(Base):
     # Relationship to files
     files = relationship("IngestFileModel", back_populates="job", cascade="all, delete-orphan")
     
-    # Constraints
+    # Indexes for common queries
     __table_args__ = (
-        # Status validation
-        CheckConstraint("status IN ('pending', 'in_progress', 'completed', 'failed', 'cancelled')",
-                       name='valid_status'),
-        
-        # File count validation
-        CheckConstraint("total_files >= 0 AND files_processed >= 0 AND files_succeeded >= 0 AND "
-                       "files_failed >= 0 AND files_skipped >= 0 AND "
-                       "files_processed = files_succeeded + files_failed + files_skipped",
-                       name='valid_file_counts'),
-        
-        # Timing validation
-        CheckConstraint("(started_at IS NULL AND completed_at IS NULL) OR "
-                       "(started_at IS NOT NULL AND completed_at IS NULL) OR "
-                       "(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at >= started_at)",
-                       name='valid_timing'),
-        
-        # Retry count validation
-        CheckConstraint("retry_count >= 0 AND retry_count <= max_retries",
-                       name='valid_retry_count'),
-        
-        # Indexes for common queries
         Index('idx_ingest_jobs_status_created', 'status', 'created_at'),
         Index('idx_ingest_jobs_source_status', 'source_identifier', 'status'),
         Index('idx_ingest_jobs_type_status', 'ingestion_type', 'status'),
@@ -151,25 +130,8 @@ class IngestFileModel(Base):
     # Relationship to job
     job = relationship("IngestJobModel", back_populates="files")
     
-    # Constraints
+    # Indexes for common queries
     __table_args__ = (
-        # Status validation
-        CheckConstraint("file_status IN ('pending', 'processing', 'completed', 'failed', 'retry', 'skipped')",
-                       name='valid_file_status'),
-        
-        # File size validation
-        CheckConstraint("file_size IS NULL OR file_size >= 0", name='valid_file_size'),
-        
-        # Processing results validation
-        CheckConstraint("chunks_created >= 0 AND documents_added >= 0", name='valid_processing_results'),
-        
-        # Timing validation
-        CheckConstraint("(started_at IS NULL AND completed_at IS NULL) OR "
-                       "(started_at IS NOT NULL AND completed_at IS NULL) OR "
-                       "(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at >= started_at)",
-                       name='valid_file_timing'),
-        
-        # Indexes for common queries
         Index('idx_ingest_files_job_status', 'job_id', 'file_status'),
         Index('idx_ingest_files_status_started', 'file_status', 'started_at'),
         Index('idx_ingest_files_completed_range', 'completed_at', postgresql_where="completed_at IS NOT NULL"),
@@ -231,11 +193,8 @@ class KnowledgeBaseModel(Base):
     chatbot = relationship("ChatbotModel", back_populates="knowledge_base")
     documents = relationship("DocumentModel", back_populates="knowledge_base", cascade="all, delete-orphan")
     
-    # Constraints
+    # Indexes
     __table_args__ = (
-        CheckConstraint("total_documents >= 0", name='valid_documents_count'),
-        CheckConstraint("total_chunks >= 0", name='valid_chunks_count'),
-        CheckConstraint("vector_dimension > 0", name='valid_vector_dimension'),
         Index('idx_kb_chatbot_id', 'chatbot_id'),
         Index('idx_kb_collection_name', 'collection_name'),
     )
@@ -281,24 +240,8 @@ class DocumentModel(Base):
     knowledge_base = relationship("KnowledgeBaseModel", back_populates="documents")
     chunks = relationship("DocumentChunkModel", back_populates="document", cascade="all, delete-orphan")
     
-    # Constraints
+    # Indexes and constraints
     __table_args__ = (
-        # Status validation
-        CheckConstraint("status IN ('pending', 'processing', 'completed', 'failed', 'skipped')",
-                       name='valid_document_status'),
-        
-        # File size validation
-        CheckConstraint("file_size >= 0", name='valid_document_file_size'),
-        
-        # Chunks count validation
-        CheckConstraint("chunks_count >= 0", name='valid_document_chunks_count'),
-        
-        # Timing validation
-        CheckConstraint("(started_at IS NULL AND completed_at IS NULL) OR "
-                       "(started_at IS NOT NULL AND completed_at IS NULL) OR "
-                       "(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at >= started_at)",
-                       name='valid_document_timing'),
-        
         # Unique constraint: one document per file path per knowledge base
         Index('idx_documents_kb_path', 'knowledge_base_id', 'file_path', unique=True),
         
@@ -339,12 +282,8 @@ class DocumentChunkModel(Base):
     # Relationship
     document = relationship("DocumentModel", back_populates="chunks")
     
-    # Constraints
+    # Indexes and constraints
     __table_args__ = (
-        # Validation
-        CheckConstraint("chunk_index >= 0", name='valid_chunk_index'),
-        CheckConstraint("chunk_size > 0", name='valid_chunk_size'),
-        
         # Unique constraint: one chunk index per document
         Index('idx_chunks_document_chunk', 'document_id', 'chunk_index', unique=True),
         

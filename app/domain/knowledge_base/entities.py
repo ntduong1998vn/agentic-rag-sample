@@ -41,13 +41,11 @@ class KnowledgeBase:
         """Increment document and chunk counts."""
         self.total_documents += 1
         self.total_chunks += chunks
-        self.updated_at = datetime.now()
     
     def update_stats(self, documents: int, chunks: int) -> None:
         """Update knowledge base statistics."""
         self.total_documents = documents
         self.total_chunks = chunks
-        self.updated_at = datetime.now()
 
 
 @dataclass
@@ -76,27 +74,23 @@ class Document:
         """Mark document as processing."""
         self.status = DocumentStatus.PROCESSING
         self.started_at = datetime.now()
-        self.updated_at = datetime.now()
     
     def mark_completed(self, chunks_count: int) -> None:
         """Mark document as completed."""
         self.status = DocumentStatus.COMPLETED
         self.chunks_count = chunks_count
         self.completed_at = datetime.now()
-        self.updated_at = datetime.now()
     
     def mark_failed(self, error_message: str) -> None:
         """Mark document as failed."""
         self.status = DocumentStatus.FAILED
         self.error_message = error_message
         self.completed_at = datetime.now()
-        self.updated_at = datetime.now()
     
     def mark_skipped(self, reason: str) -> None:
         """Mark document as skipped."""
         self.status = DocumentStatus.SKIPPED
         self.error_message = reason
-        self.updated_at = datetime.now()
 
 
 @dataclass
