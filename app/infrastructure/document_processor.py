@@ -5,15 +5,13 @@ This module handles loading, chunking, embedding, and storing documents.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
 import uuid
 from pathlib import Path
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import UnstructuredExcelLoader
-from langchain_community.document_loaders import TextLoader
 
-from app.domain.knowledge_base.entities import Document, DocumentChunk, KnowledgeBase
+from app.domain.knowledge_base.entities import Document, KnowledgeBase
 from app.domain.knowledge_base.ports import VectorStorePort
 from app.infrastructure.embeddings import get_embedding_service
 from app.config import settings
@@ -42,7 +40,7 @@ class DocumentProcessor:
             length_function=len,
         )
     
-    async def process_document(self, document: Document, knowledge_base: KnowledgeBase) -> List[DocumentChunk]:
+    async def process_document(self, document: Document, knowledge_base: KnowledgeBase) -> int:
         """
         Process a document: load, chunk, embed, and store.
         
@@ -51,30 +49,26 @@ class DocumentProcessor:
             knowledge_base: Knowledge base the document belongs to
             
         Returns:
-            List of created DocumentChunk entities
+            Number of chunks created
         """
         try:
             # 1. Load content
-            content = self._load_content(document.file_path)
-            if not content:
-                logger.warning(f"No content extracted from {document.file_path}")
-                return []
-            
+            documents = self._load_content(document.file_path)
+
             # 2. Create chunks
-            text_chunks = self.text_splitter.split_text(content)
-            logger.info(f"Created {len(text_chunks)} chunks for {document.file_name}")
+            # text_chunks = self.text_splitter.split_text(content)
+            # logger.info(f"Created {len(text_chunks)} chunks for {document.file_name}")
             
-            if not text_chunks:
-                return []
+            if not documents:
+                return 0
             
             # 3. Generate embeddings
-            embeddings = await self.embedding_service.get_embeddings(text_chunks)
+            embeddings = await self.embedding_service.get_embeddings(documents)
             
-            # 4. Prepare vectors and DocumentChunk entities
+            # 4. Prepare vectors for storage
             vectors = []
-            document_chunks = []
             
-            for i, (text, embedding) in enumerate(zip(text_chunks, embeddings)):
+            for i, (text, embedding) in enumerate(zip(documents, embeddings)):
                 chunk_id = uuid.uuid4()
                 vector_id = str(chunk_id)
                 
@@ -96,17 +90,6 @@ class DocumentProcessor:
                     }
                 }
                 vectors.append(vector_data)
-                
-                # Create DocumentChunk entity
-                chunk = DocumentChunk(
-                    id=chunk_id,
-                    document_id=document.id,
-                    chunk_index=i,
-                    content=text,
-                    chunk_size=len(text),
-                    vector_id=vector_id
-                )
-                document_chunks.append(chunk)
             
             # 5. Store in vector database
             await self.vector_store.store_vectors(
@@ -114,7 +97,7 @@ class DocumentProcessor:
                 vectors=vectors
             )
             
-            return document_chunks
+            return len(text_chunks)
             
         except Exception as e:
             logger.error(f"Error processing document {document.id}: {e}")
@@ -132,13 +115,8 @@ class DocumentProcessor:
         
         # Load based on file extension
         try:
-            if ext in {".txt", ".md", ".json", ".csv"}:
-                return TextLoader(str(path)).load()
-            elif ext in {".xlxs", ".xls"}:
-                return UnstructuredExcelLoader(str(path), mode='elements').load()
-            else:
-                logger.warning(f"Unsupported file type {ext}, falling back to raw text read.")
-                return TextLoader(str(path)).load()
+            if ext in {".xlsx", ".xls"}:
+                return UnstructuredExcelLoader(str(path), mode='elements', chunking_strategy='by_title').load()
         except Exception as e:
             logger.error(f"Error reading file {file_path}: {e}")
             raise

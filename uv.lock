@@ -44,6 +44,7 @@ dependencies = [
     { name = "langchain" },
     { name = "langchain-community" },
     { name = "langchain-google-genai" },
+    { name = "langchain-qdrant" },
     { name = "langchain-text-splitters" },
     { name = "openpyxl" },
     { name = "psycopg2-binary" },
@@ -77,9 +78,10 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.120.3" },
     { name = "google-generativeai", specifier = ">=0.8.0" },
     { name = "greenlet", specifier = ">=3.0.0" },
-    { name = "langchain", specifier = ">=0.3.0" },
-    { name = "langchain-community", specifier = ">=0.3.0" },
+    { name = "langchain", specifier = ">=0.3.27" },
+    { name = "langchain-community", specifier = ">=0.3.31" },
     { name = "langchain-google-genai", specifier = ">=2.0.0" },
+    { name = "langchain-qdrant", specifier = ">=0.2.1" },
     { name = "langchain-text-splitters", specifier = ">=0.3.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "psycopg2-binary", specifier = ">=2.9.0" },
@@ -1665,6 +1667,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0b/9f/788360ec44b4b280d754db92f9e204ddd96bd6730fad8a9ff9b1319c7e71/langchain_google_genai-2.0.10.tar.gz", hash = "sha256:b51067b468853856f275bb7b1a85dbaf4467b59fe67e35fcd614fc0d744c810e", size = 37699, upload-time = "2025-02-21T16:55:55.765Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0b/ce/d2a9c47cdb0684160f5e9717534fc1adc22b326ae70348caa5552dd66953/langchain_google_genai-2.0.10-py3-none-any.whl", hash = "sha256:964a7542fd11fdec7592052b4eaef383227f7c4fa4d754a455e4bf0634f4ad28", size = 41980, upload-time = "2025-02-21T16:55:53.793Z" },
+]
+
+[[package]]
+name = "langchain-qdrant"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "langchain-core" },
+    { name = "pydantic" },
+    { name = "qdrant-client" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a2/f0/a5624a77f6f69f9b8c1533460e92b7afe7f4574d79a4ba6415da8a8098c6/langchain_qdrant-0.2.1.tar.gz", hash = "sha256:19d8cce3e305e87c32f3be6fdcca6b5acb595297695a4f373f233e7fda6a2b7c", size = 34823, upload-time = "2025-09-10T18:07:06.555Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/a7/61365d11afa5e20fa194ad54cc299b4b0b6708b96975ed121a7fffa6f669/langchain_qdrant-0.2.1-py3-none-any.whl", hash = "sha256:d82637eae4828ca67ac806d722fc21b660617fdd5d7eef07b99249d0e7976c3b", size = 24335, upload-time = "2025-09-10T18:07:05.669Z" },
 ]
 
 [[package]]

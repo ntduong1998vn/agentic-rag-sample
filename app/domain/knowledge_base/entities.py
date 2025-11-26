@@ -94,22 +94,6 @@ class Document:
 
 
 @dataclass
-class DocumentChunk:
-    """
-    Domain entity representing a chunk of a document.
-    
-    Stores the text content and metadata for a chunk that has been embedded.
-    """
-    document_id: uuid.UUID
-    chunk_index: int
-    content: str
-    chunk_size: int
-    vector_id: str
-    id: uuid.UUID = field(default_factory=uuid.uuid4)
-    created_at: datetime = field(default_factory=datetime.now)
-
-
-@dataclass
 class FileInfo:
     """
     Value object representing file information from scanning.

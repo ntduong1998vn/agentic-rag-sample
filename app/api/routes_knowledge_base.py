@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.database.database import get_db
 from app.infrastructure.database.repositories.chatbot_repository import SQLAlchemyChatbotRepository
 from app.infrastructure.database.repositories.knowledge_base_repository import SQLAlchemyKnowledgeBaseRepository
-from app.infrastructure.database.repositories.document_repository import SQLAlchemyDocumentRepository, SQLAlchemyDocumentChunkRepository
+from app.infrastructure.database.repositories.document_repository import SQLAlchemyDocumentRepository
 from app.infrastructure.document_scanner import DocumentScanner
 from app.infrastructure.document_processor import DocumentProcessor
 from app.infrastructure.provider.vector_database_provider import get_vector_database
@@ -38,7 +38,6 @@ async def get_knowledge_base_service(
     """Dependency to get KnowledgeBaseService instance."""
     kb_repo = SQLAlchemyKnowledgeBaseRepository(db)
     doc_repo = SQLAlchemyDocumentRepository(db)
-    chunk_repo = SQLAlchemyDocumentChunkRepository(db)
     chatbot_repo = SQLAlchemyChatbotRepository(db)
     
     scanner = DocumentScanner()
@@ -47,7 +46,6 @@ async def get_knowledge_base_service(
     return KnowledgeBaseService(
         kb_repository=kb_repo,
         doc_repository=doc_repo,
-        chunk_repository=chunk_repo,
         chatbot_repository=chatbot_repo,
         vector_store=vector_store,
         document_scanner=scanner,

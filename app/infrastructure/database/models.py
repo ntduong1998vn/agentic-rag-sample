@@ -238,7 +238,6 @@ class DocumentModel(Base):
     
     # Relationships
     knowledge_base = relationship("KnowledgeBaseModel", back_populates="documents")
-    chunks = relationship("DocumentChunkModel", back_populates="document", cascade="all, delete-orphan")
     
     # Indexes and constraints
     __table_args__ = (
@@ -250,44 +249,4 @@ class DocumentModel(Base):
         Index('idx_documents_status', 'status'),
         Index('idx_documents_kb_status', 'knowledge_base_id', 'status'),
         Index('idx_documents_checksum', 'checksum'),
-    )
-
-
-class DocumentChunkModel(Base):
-    """
-    ORM model for document chunks.
-    
-    Maps to the document_chunks table and stores chunk text and vector references.
-    """
-    __tablename__ = "document_chunks"
-    
-    # Primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    
-    # Foreign key to document
-    document_id = Column(UUID(as_uuid=True), ForeignKey('documents.id', ondelete='CASCADE'),
-                        nullable=False, index=True)
-    
-    # Chunk information
-    chunk_index = Column(Integer, nullable=False)
-    content = Column(Text, nullable=False)
-    chunk_size = Column(Integer, nullable=False)
-    
-    # Vector reference
-    vector_id = Column(String(255), nullable=False, index=True)
-    
-    # Timestamp
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    
-    # Relationship
-    document = relationship("DocumentModel", back_populates="chunks")
-    
-    # Indexes and constraints
-    __table_args__ = (
-        # Unique constraint: one chunk index per document
-        Index('idx_chunks_document_chunk', 'document_id', 'chunk_index', unique=True),
-        
-        # Indexes
-        Index('idx_chunks_document_id', 'document_id'),
-        Index('idx_chunks_vector_id', 'vector_id'),
     )

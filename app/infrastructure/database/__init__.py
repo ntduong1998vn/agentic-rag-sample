@@ -7,10 +7,9 @@ from app.infrastructure.database.models import IngestJobModel, IngestFileModel
 __all__ = [
     "Base",
     "get_db",
-    "init_db",
-    "drop_all_tables",
     "IngestJobModel",
     "IngestFileModel",
+    "ChatbotModel",
+    "KnowledgeBaseModel",
     "DocumentModel",
-    "DocumentChunkModel"
 ]

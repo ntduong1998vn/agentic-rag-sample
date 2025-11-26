@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 import uuid
 
-from app.domain.knowledge_base.entities import KnowledgeBase, Document, DocumentChunk
+from app.domain.knowledge_base.entities import KnowledgeBase, Document
 
 
 class KnowledgeBaseRepositoryPort(ABC):
@@ -82,30 +82,6 @@ class DocumentRepositoryPort(ABC):
     @abstractmethod
     async def count_by_status(self, knowledge_base_id: uuid.UUID, status: str) -> int:
         """Count documents by status."""
-        pass
-
-
-class DocumentChunkRepositoryPort(ABC):
-    """Abstract repository interface for document chunk operations."""
-    
-    @abstractmethod
-    async def create(self, chunk: DocumentChunk) -> DocumentChunk:
-        """Create a new document chunk."""
-        pass
-    
-    @abstractmethod
-    async def create_many(self, chunks: List[DocumentChunk]) -> List[DocumentChunk]:
-        """Create multiple chunks in batch."""
-        pass
-    
-    @abstractmethod
-    async def get_by_document_id(self, document_id: uuid.UUID) -> List[DocumentChunk]:
-        """Get all chunks for a document."""
-        pass
-    
-    @abstractmethod
-    async def delete_by_document_id(self, document_id: uuid.UUID) -> bool:
-        """Delete all chunks for a document."""
         pass
 
 

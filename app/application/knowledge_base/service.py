@@ -9,11 +9,10 @@ import uuid
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from app.domain.knowledge_base.entities import KnowledgeBase, Document, DocumentChunk, DocumentStatus
+from app.domain.knowledge_base.entities import KnowledgeBase, Document, DocumentStatus
 from app.domain.knowledge_base.ports import (
     KnowledgeBaseRepositoryPort, 
     DocumentRepositoryPort, 
-    DocumentChunkRepositoryPort,
     VectorStorePort
 )
 from app.domain.chatbot.ports import ChatbotRepository
@@ -30,7 +29,6 @@ class KnowledgeBaseService:
         self,
         kb_repository: KnowledgeBaseRepositoryPort,
         doc_repository: DocumentRepositoryPort,
-        chunk_repository: DocumentChunkRepositoryPort,
         chatbot_repository: ChatbotRepository,
         vector_store: VectorStorePort,
         document_scanner: DocumentScanner,
@@ -38,7 +36,6 @@ class KnowledgeBaseService:
     ):
         self.kb_repository = kb_repository
         self.doc_repository = doc_repository
-        self.chunk_repository = chunk_repository
         self.chatbot_repository = chatbot_repository
         self.vector_store = vector_store
         self.document_scanner = document_scanner
@@ -150,19 +147,15 @@ class KnowledgeBaseService:
                 doc.start_processing()
                 await self.doc_repository.update(doc)
                 
-                # Process document
-                chunks = await self.document_processor.process_document(doc, kb)
-                
-                # Save chunks to DB
-                if chunks:
-                    await self.chunk_repository.create_many(chunks)
+                # Process document (returns chunk count)
+                chunks_count = await self.document_processor.process_document(doc, kb)
                 
                 # Update status to completed
-                doc.mark_completed(len(chunks))
+                doc.mark_completed(chunks_count)
                 await self.doc_repository.update(doc)
                 
                 processed_count += 1
-                total_chunks_added += len(chunks)
+                total_chunks_added += chunks_count
                 
             except Exception as e:
                 logger.error(f"Failed to process document {doc.file_name}: {e}")
