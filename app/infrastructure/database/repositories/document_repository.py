@@ -9,9 +9,9 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 
-from app.domain.knowledge_base.entities import Document, DocumentChunk, DocumentStatus
-from app.domain.knowledge_base.ports import DocumentRepositoryPort, DocumentChunkRepositoryPort
-from app.infrastructure.database.models import DocumentModel, DocumentChunkModel
+from app.domain.knowledge_base.entities import Document, DocumentStatus
+from app.domain.knowledge_base.ports import DocumentRepositoryPort
+from app.infrastructure.database.models import DocumentModel
 
 
 class SQLAlchemyDocumentRepository(DocumentRepositoryPort):
@@ -141,78 +141,4 @@ class SQLAlchemyDocumentRepository(DocumentRepositoryPort):
             chunks_count=document.chunks_count,
             started_at=document.started_at,
             completed_at=document.completed_at,
-        )
-
-
-class SQLAlchemyDocumentChunkRepository(DocumentChunkRepositoryPort):
-    """SQLAlchemy implementation of document chunk repository."""
-    
-    def __init__(self, session: AsyncSession):
-        self.session = session
-    
-    async def create(self, chunk: DocumentChunk) -> DocumentChunk:
-        """Create a new document chunk."""
-        model = self._to_model(chunk)
-        self.session.add(model)
-        await self.session.commit()
-        await self.session.refresh(model)
-        return self._to_entity(model)
-    
-    async def create_many(self, chunks: List[DocumentChunk]) -> List[DocumentChunk]:
-        """Create multiple chunks in batch."""
-        models = [self._to_model(chunk) for chunk in chunks]
-        self.session.add_all(models)
-        await self.session.commit()
-        
-        # Refresh all models
-        for model in models:
-            await self.session.refresh(model)
-        
-        return [self._to_entity(model) for model in models]
-    
-    async def get_by_document_id(self, document_id: uuid.UUID) -> List[DocumentChunk]:
-        """Get all chunks for a document."""
-        stmt = select(DocumentChunkModel).where(
-            DocumentChunkModel.document_id == document_id
-        ).order_by(DocumentChunkModel.chunk_index)
-        
-        result = await self.session.execute(stmt)
-        models = result.scalars().all()
-        return [self._to_entity(model) for model in models]
-    
-    async def delete_by_document_id(self, document_id: uuid.UUID) -> bool:
-        """Delete all chunks for a document."""
-        stmt = select(DocumentChunkModel).where(DocumentChunkModel.document_id == document_id)
-        result = await self.session.execute(stmt)
-        models = result.scalars().all()
-        
-        for model in models:
-            await self.session.delete(model)
-        
-        await self.session.commit()
-        return True
-    
-    @staticmethod
-    def _to_entity(model: DocumentChunkModel) -> DocumentChunk:
-        """Convert ORM model to domain entity."""
-        return DocumentChunk(
-            id=model.id,
-            document_id=model.document_id,
-            chunk_index=model.chunk_index,
-            content=model.content,
-            chunk_size=model.chunk_size,
-            vector_id=model.vector_id,
-            created_at=model.created_at,
-        )
-    
-    @staticmethod
-    def _to_model(chunk: DocumentChunk) -> DocumentChunkModel:
-        """Convert domain entity to ORM model."""
-        return DocumentChunkModel(
-            id=chunk.id,
-            document_id=chunk.document_id,
-            chunk_index=chunk.chunk_index,
-            content=chunk.content,
-            chunk_size=chunk.chunk_size,
-            vector_id=chunk.vector_id,
         )
