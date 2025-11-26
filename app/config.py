@@ -5,14 +5,10 @@ Centralized application configuration.
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import qdrant_client
-from qdrant_client.http import models
-from qdrant_client.http.models import Distance, VectorParams
-from qdrant_client.http.exceptions import UnexpectedResponse
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -70,111 +66,6 @@ class Settings(BaseSettings):
 # Global settings instance
 settings = Settings()
 
-
-# Qdrant Helpers
-
-def get_qdrant_client(
-    host: Optional[str] = None,
-    port: Optional[int] = None,
-    api_key: Optional[str] = None
-) -> qdrant_client.QdrantClient:
-    """Initialize and return a Qdrant client."""
-    host = host or settings.qdrant_host
-    port = port or settings.qdrant_port
-    api_key = api_key or settings.qdrant_api_key
-
-    if api_key:
-        return qdrant_client.QdrantClient(
-            host=host, 
-            port=port, 
-            api_key=api_key, 
-            timeout=30,
-            prefer_grpc=False  # Use HTTP instead of gRPC to avoid SSL issues
-        )
-    else:
-        return qdrant_client.QdrantClient(
-            host=host, 
-            port=port, 
-            timeout=30,
-            prefer_grpc=False  # Use HTTP instead of gRPC to avoid SSL issues
-        )
-
-
-def get_or_create_collection(
-    collection_name: str,
-    vector_size: int = 1536,
-    client: Optional[qdrant_client.QdrantClient] = None
-) -> models.CollectionInfo:
-    """Get or create a Qdrant collection."""
-    if client is None:
-        client = get_qdrant_client()
-
-    try:
-        collection_info = client.get_collection(collection_name=collection_name)
-        logger.info(f"Using existing collection: {collection_name}")
-        return collection_info
-    except UnexpectedResponse:
-        client.create_collection(
-            collection_name=collection_name,
-            vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE)
-        )
-        logger.info(f"Created new collection: {collection_name}")
-        return client.get_collection(collection_name=collection_name)
-    except Exception as e:
-        logger.error(f"Error handling collection: {e}")
-        raise
-
-
-def reset_collection(
-    collection_name: str,
-    vector_size: int = 1536,
-    client: Optional[qdrant_client.QdrantClient] = None
-) -> models.CollectionInfo:
-    """Delete and recreate a collection."""
-    if client is None:
-        client = get_qdrant_client()
-
-    try:
-        client.delete_collection(collection_name=collection_name)
-        logger.info(f"Deleted collection: {collection_name}")
-    except UnexpectedResponse:
-        logger.warning(f"Collection {collection_name} does not exist")
-    except Exception as e:
-        logger.warning(f"Could not delete collection: {e}")
-
-    client.create_collection(
-        collection_name=collection_name,
-        vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE)
-    )
-    logger.info(f"Created new collection: {collection_name}")
-    return client.get_collection(collection_name=collection_name)
-
-
-def get_collection_stats(
-    collection_name: str,
-    client: Optional[qdrant_client.QdrantClient] = None
-) -> Dict[str, Any]:
-    """Get statistics for the Qdrant collection."""
-    if client is None:
-        client = get_qdrant_client()
-
-    try:
-        collection_info = client.get_collection(collection_name=collection_name)
-        points_count = client.count(collection_name=collection_name).count
-        
-        return {
-            "collection_name": collection_name,
-            "document_count": points_count,
-            "status": "active",
-            "vectors_config": collection_info.config.params.vectors.to_dict() if collection_info.config.params.vectors else None
-        }
-    except Exception as e:
-        logger.error(f"Error getting collection stats: {e}")
-        return {
-            "collection_name": collection_name,
-            "document_count": 0,
-            "status": "not_found"
-        }
 
 # Logging Configuration (Simplified version of logging_config.py)
 _logging_initialized = False
