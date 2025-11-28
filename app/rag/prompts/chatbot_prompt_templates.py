@@ -1,0 +1,1 @@
+"""Chatbot-specific prompt templates."""

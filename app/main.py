@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # New structure imports
-from app.config import initialize_logging, get_logger
+from app.core.logging import initialize_logging, get_logger
 
 # Initialize centralized logging
 initialize_logging()

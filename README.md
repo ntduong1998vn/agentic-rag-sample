@@ -9,10 +9,12 @@ A powerful Retrieval-Augmented Generation (RAG) system with agentic capabilities
 - 🗄️ **Qdrant Vector Storage** - Docker-containerized vector database
 - 📄 **Multi-format Support** - PDF, Word, Excel, Markdown, images, and more
 - 💬 **Conversational AI** - Chat with documents using Google Gemini
+- 🎨 **Streamlit Chatbot UI** - Beautiful, modern web interface for chatting with your documents
 - 🔄 **Streaming Responses** - Real-time response streaming
 - 🦊 **GitLab Integration** - Ingest and search code from repositories
 - 🌳 **AST-based Code Chunking** - Semantic analysis for Python, JS, TS, PHP
 - 🎯 **Customizable Chatbots** - Configure multiple chatbots with different personalities
+
 
 ## 🚀 Quick Start
 
@@ -55,6 +57,7 @@ Visit http://localhost:8000/docs for the interactive API documentation.
 
 - **[Architecture Guide](docs/ARCHITECTURE.md)** - Detailed architecture documentation
 - **[Alembic Guide](docs/alembic-guide.md)** - Database migration guide
+- **[Streamlit UI Guide](STREAMLIT_README.md)** - Chatbot web interface documentation
 - **[API Documentation](http://localhost:8000/docs)** - Interactive API docs (when server is running)
 
 ## 🛠️ Available Workflows
