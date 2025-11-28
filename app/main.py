@@ -3,8 +3,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # New structure imports
-from app.api.routes_chatbot import router as chatbot_router
-from app.api.routes_knowledge_base import router as kb_router
 from app.config import initialize_logging, get_logger
 
 # Initialize centralized logging
@@ -68,8 +66,6 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(chatbot_router)
-app.include_router(kb_router)
 
 # Root endpoint
 @app.get("/")
@@ -89,59 +85,6 @@ async def root():
             "chatbots": "/chatbots"
         }
     }
-
-# Enhanced health check endpoint
-@app.get("/health")
-async def health_check():
-    """
-    Basic health check endpoint
-    """
-    return {
-        "status": "healthy",
-        "service": "Agentic RAG API",
-        "version": "1.2.0"
-    }
-
-# API information endpoint
-@app.get("/info")
-async def api_info():
-    """
-    Get detailed API information
-    """
-    return {
-        "name": "Agentic RAG API",
-        "version": "1.2.0",
-        "description": "Retrieval-augmented generation system with agentic capabilities",
-        "features": [
-            "Japanese semantic document chunking",
-            "Google Gemini embeddings (gemini-embedding-001)",
-            "Qdrant vector storage",
-            "Multi-format document processing",
-            "Conversational AI with Google Gemini 2.5 Flash-Lite",
-            "Stateless chat processing",
-            "Streaming response support",
-            "RESTful API design",
-            "GitLab Integration",
-            "AST-based Code Chunking (Python, JavaScript, TypeScript, PHP)"
-        ],
-        "supported_file_types": [
-            ".pdf", ".docx", ".doc", ".csv", ".txt", ".md",
-            ".html", ".htm", ".jpg", ".jpeg", ".png", ".gif",
-            ".bmp", ".tiff", ".epub"
-        ],
-        "supported_code_languages": [
-            "Python (.py)",
-            "JavaScript (.js)",
-            "TypeScript (.ts, .tsx)",
-            "PHP (.php)"
-        ],
-        "endpoints": {
-            "chat": "/chat",
-            "files": "/files",
-            "chatbots": "/chatbots"
-        }
-    }
-
 
 if __name__ == "__main__":
     import uvicorn
