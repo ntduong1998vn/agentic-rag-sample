@@ -9,7 +9,7 @@ from alembic import context
 # access to the values within the .ini file in use.
 config = context.config
 
-from app.config import settings
+from app.core.config import settings
 
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
@@ -22,7 +22,8 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # Import from the database package - this automatically imports all models
 # defined in the package's __init__.py
-from app.infrastructure.database import Base
+from app.db.base import Base
+from app.models.chatbot import Chatbot
 
 target_metadata = Base.metadata
 
