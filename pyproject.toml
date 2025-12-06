@@ -3,16 +3,14 @@ name = "agentic-rag"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi[standard]>=0.120.3",
     "python-dotenv>=1.2.1",
     "pydantic-settings>=2.0.0",
     "openpyxl>=3.1.5",
     "qdrant-client>=1.11.3",
-    "langchain-google-genai>=2.0.0",
-    "langchain-text-splitters>=0.3.0",
-    "google-generativeai>=0.8.0",
+    "langchain-text-splitters>=1.0.0",
     # GitLab connector dependencies
     "python-gitlab>=4.11.0",
     "tree-sitter>=0.21.0",
@@ -29,11 +27,12 @@ dependencies = [
     "asyncpg>=0.30.0",
     "greenlet>=3.0.0",
     "unstructured[docx,md,pdf,xlsx]>=0.18.21",
-    "langchain>=0.3.27",
-    "langchain-community>=0.3.31",
-    "langchain-qdrant>=0.2.1",
     "streamlit>=1.28.0",
     "requests>=2.31.0",
+    "langchain>=1.1.2",
+    "langchain-community>=0.3.31",
+    "langchain-qdrant>=1.1.0",
+    "langchain-google-genai>=2.0.2",
 ]
 
 [project.optional-dependencies]
