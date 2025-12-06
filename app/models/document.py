@@ -14,7 +14,6 @@ class Document(Base):
     file_name = Column(String(500), nullable=False)
     file_size = Column(BigInteger, nullable=False)
     file_type = Column(String(100), nullable=False)
-    checksum = Column(String(128), nullable=False, index=True)
     status = Column(String(20), nullable=False, index=True)
     error_message = Column(Text, nullable=True)
     chunks_count = Column(Integer, nullable=False, default=0)
