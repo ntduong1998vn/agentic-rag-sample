@@ -10,6 +10,9 @@ from app.db.base import Base
 from app.models.chatbot import Chatbot
 from app.models.document import Document
 from app.models.knowledge_base import KnowledgeBase
+from app.models.conversation import Conversation
+from app.models.chat_message import ChatMessage
+from app.models.conversation_document import ConversationDocument
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
