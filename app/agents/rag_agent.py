@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.agents.tools.rag_tool import create_knowledge_base_tool
 from app.agents.tools.document_check_tool import create_document_check_tool
+from app.agents.tools.document_search_tool import create_document_search_tool
 from langsmith.wrappers import wrap_gemini
 
 logger = get_logger(__name__)
@@ -56,19 +57,24 @@ def create_rag_agent(
     tools = [
         create_knowledge_base_tool(collection_name),
         create_document_check_tool(chatbot_id, conversation_id),
+        create_document_search_tool(collection_name, chatbot_id, conversation_id),
     ]
 
     system_message = """You are a helpful AI assistant with access to a knowledge base.
-When answering questions, use the search_knowledge_base tool to find relevant information.
-When the user asks about a specific document name or wants to know if a document exists, 
-use the check_document_exists tool to verify its presence.
+
+When answering questions:
+1. Use search_knowledge_base to search across all documents in the knowledge base.
+2. Use check_document_exists when the user asks if a specific document exists.
+3. Use search_document_content when the user asks about the content of a SPECIFIC document or file.
+   For example: "What is in document X?", "Tell me about file Y", "What does document Z say about...?"
+
 Always cite your sources when providing information from the knowledge base.
 If you cannot find relevant information, say so honestly."""
 
     agent = create_agent(
         model=llm,
         tools=tools,
-        system_prompt=system_message,
+        # system_prompt=system_message,
         checkpointer=checkpointer,
     )
 
