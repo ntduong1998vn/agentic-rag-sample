@@ -36,10 +36,18 @@ class Settings(BaseSettings):
         """Construct database URL."""
         return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
-    # Vector Store
+    # Vector Store (Qdrant - Legacy)
     qdrant_host: str = Field("localhost", description="Qdrant server host")
     qdrant_port: int = Field(6333, description="Qdrant server port")
     qdrant_api_key: Optional[str] = Field(None, description="Qdrant API key")
+
+    # AWS S3 Vectors Configuration
+    s3_vectors_bucket_name: str = Field("", description="S3 Vector Bucket name")
+    s3_vectors_region: str = Field("us-east-1", description="AWS region for S3 Vectors")
+    aws_access_key_id: Optional[str] = Field(None, description="AWS Access Key ID")
+    aws_secret_access_key: Optional[str] = Field(
+        None, description="AWS Secret Access Key"
+    )
 
     # Logging
     log_level: str = Field("DEBUG", description="Logging level")

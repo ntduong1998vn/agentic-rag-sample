@@ -3,7 +3,7 @@
 from langchain_core.tools import tool
 
 from app.core.logging import get_logger
-from app.rag.vectorstores.qdrant_store import get_vector_store
+from app.rag.vectorstores.s3_store import get_vector_store
 
 logger = get_logger(__name__)
 

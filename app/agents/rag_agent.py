@@ -74,7 +74,7 @@ If you cannot find relevant information, say so honestly."""
     agent = create_agent(
         model=llm,
         tools=tools,
-        # system_prompt=system_message,
+        system_prompt=system_message,
         checkpointer=checkpointer,
     )
 

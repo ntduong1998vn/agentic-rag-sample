@@ -12,9 +12,9 @@ from app.services.knowledge_base import KnowledgeBaseService
 from app.services.document_scanner import DocumentScanner
 from app.services.document import DocumentService, DocumentStatus
 from app.rag.pipelines.document_processor import DocumentProcessor
-from app.rag.vectorstores.qdrant_store import (
-    ensure_collection_exists,
-    add_documents_to_collection,
+from app.rag.vectorstores.s3_store import (
+    ensure_index_exists,
+    add_documents_to_index,
     delete_document_vectors,
 )
 
@@ -85,13 +85,13 @@ class IngestionService:
             result.errors.append(error_msg)
             return result
 
-        # Step 1b: Ensure Qdrant collection exists
+        # Step 1b: Ensure S3 Vectors index exists
         try:
-            ensure_collection_exists(
+            ensure_index_exists(
                 knowledge_base.collection_name, knowledge_base.vector_dimension
             )
         except Exception as e:
-            error_msg = f"Failed to create Qdrant collection: {str(e)}"
+            error_msg = f"Failed to create S3 Vectors index: {str(e)}"
             logger.error(error_msg)
             result.errors.append(error_msg)
             return result
@@ -177,10 +177,8 @@ class IngestionService:
                 )
                 return True
 
-            # Add chunks to Qdrant
-            chunks_added = add_documents_to_collection(
-                collection_name, chunks, document.id
-            )
+            # Add chunks to S3 Vectors
+            chunks_added = add_documents_to_index(collection_name, chunks, document.id)
 
             # Update document status to complete
             self.document_service.update_status(

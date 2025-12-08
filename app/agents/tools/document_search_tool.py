@@ -10,9 +10,8 @@ from app.db.session import SessionLocal
 from app.models.document import Document
 from app.models.conversation_document import ConversationDocument
 from app.models.knowledge_base import KnowledgeBase
-from app.rag.vectorstores.qdrant_store import get_vector_store
+from app.rag.vectorstores.s3_store import get_vector_store
 from app.core.logging import get_logger
-from qdrant_client.http import models as qdrant_models
 
 logger = get_logger(__name__)
 
@@ -103,24 +102,15 @@ def create_document_search_tool(
                 if not document_id:
                     return f"Không tìm thấy tài liệu '{document_name}' hoặc tài liệu chưa được xử lý hoàn tất."
 
-                # Search in Qdrant with document_id filter
+                # Search in S3 Vectors with document_id filter
                 vector_store = get_vector_store(collection_name)
 
-                # Create filter for the specific document
-                search_kwargs = {
-                    "k": 4,
-                    "filter": qdrant_models.Filter(
-                        must=[
-                            qdrant_models.FieldCondition(
-                                key="metadata.document_id",
-                                match=qdrant_models.MatchValue(value=str(document_id)),
-                            )
-                        ]
-                    ),
-                }
-
                 # Perform similarity search with filter
-                docs = vector_store.similarity_search(query, **search_kwargs)
+                docs = vector_store.similarity_search(
+                    query,
+                    k=4,
+                    filter={"document_id": {"$eq": str(document_id)}},
+                )
 
                 if not docs:
                     return f"Không tìm thấy thông tin liên quan đến '{query}' trong tài liệu '{found_document_name}'."
