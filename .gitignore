@@ -16,3 +16,5 @@ vector_store/
 logs/
 *.log
 *.log.*
+
+.DS_Store

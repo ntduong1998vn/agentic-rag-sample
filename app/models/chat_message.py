@@ -36,5 +36,6 @@ class ChatMessage(Base):
     conversation = relationship(
         "Conversation",
         back_populates="messages",
-        primaryjoin="ChatMessage.session_id == foreign(Conversation.session_id)"
+        primaryjoin="ChatMessage.session_id == Conversation.session_id",
+        foreign_keys="[ChatMessage.session_id]",
     )

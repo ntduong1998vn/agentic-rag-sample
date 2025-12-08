@@ -35,4 +35,10 @@ class Conversation(Base):
     # Relationships
     chatbot = relationship("Chatbot", backref="conversations")
     documents = relationship("ConversationDocument", back_populates="conversation", cascade="all, delete-orphan")
-    messages = relationship("ChatMessage", back_populates="conversation", cascade="all, delete-orphan")
+    messages = relationship(
+        "ChatMessage",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        primaryjoin="Conversation.session_id == ChatMessage.session_id",
+        foreign_keys="[ChatMessage.session_id]",
+    )
