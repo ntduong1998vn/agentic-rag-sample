@@ -4,7 +4,8 @@ RAG Agent for chatbot conversations.
 Uses LangChain 1.0.0 create_agent (LangGraph-backed) with a knowledge base retrieval tool.
 """
 
-from typing import List
+from typing import List, Optional
+from uuid import UUID
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
@@ -13,6 +14,7 @@ from langchain.agents import create_agent
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.agents.tools.rag_tool import create_knowledge_base_tool
+from app.agents.tools.document_check_tool import create_document_check_tool
 from langsmith.wrappers import wrap_gemini
 
 logger = get_logger(__name__)
@@ -32,6 +34,8 @@ def get_llm(model_name: str = "gemini-2.5-flash-lite") -> ChatGoogleGenerativeAI
 
 def create_rag_agent(
     collection_name: str,
+    chatbot_id: UUID,
+    conversation_id: Optional[UUID] = None,
     model_name: str = "gemini-2.5-flash-lite",
     checkpointer=None,
 ):
@@ -40,6 +44,8 @@ def create_rag_agent(
 
     Args:
         collection_name: Name of the Qdrant collection to search.
+        chatbot_id: The chatbot ID for document existence checks.
+        conversation_id: Optional conversation ID for conversation-specific document checks.
         model_name: Name of the LLM model to use.
         checkpointer: Optional LangGraph checkpointer for state persistence.
 
@@ -47,10 +53,15 @@ def create_rag_agent(
         A compiled LangGraph agent.
     """
     llm = get_llm(model_name)
-    tools = [create_knowledge_base_tool(collection_name)]
+    tools = [
+        create_knowledge_base_tool(collection_name),
+        create_document_check_tool(chatbot_id, conversation_id),
+    ]
 
     system_message = """You are a helpful AI assistant with access to a knowledge base.
 When answering questions, use the search_knowledge_base tool to find relevant information.
+When the user asks about a specific document name or wants to know if a document exists, 
+use the check_document_exists tool to verify its presence.
 Always cite your sources when providing information from the knowledge base.
 If you cannot find relevant information, say so honestly."""
 

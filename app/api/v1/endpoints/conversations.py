@@ -150,7 +150,9 @@ async def chat(
     # History is automatically loaded/saved by LangGraph via thread_id
     async with get_checkpointer() as checkpointer:
         agent = create_rag_agent(
-            knowledge_base.collection_name,
+            collection_name=knowledge_base.collection_name,
+            chatbot_id=conversation.chatbot_id,
+            conversation_id=conversation_id,
             checkpointer=checkpointer,
         )
         response_text, sources = await run_agent(
