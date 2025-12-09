@@ -1,6 +1,6 @@
 """Amazon S3 Vectors store implementation using langchain-aws."""
 
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from langchain_core.documents import Document as LangchainDocument
@@ -9,7 +9,6 @@ from langchain_aws.embeddings import BedrockEmbeddings
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.rag.embeddings.gemini import get_gemini_embeddings
 
 logger = get_logger(__name__)
 
@@ -163,9 +162,10 @@ def delete_document_vectors(index_name: str, document_id: UUID) -> None:
         vector_store = get_vector_store(index_name)
 
         # Search for vectors with this document_id to get their IDs
-        # Use a generic query and filter by document_id
+        # Use a dummy query (actual text doesn't matter since we filter by document_id)
+        # Note: Empty string causes Bedrock validation error (minLength: 1)
         results = vector_store.similarity_search(
-            query="",  # Empty query to match all
+            query="all",  # Dummy query to satisfy embedding model requirements
             k=1000,  # Get as many as possible
             filter={"document_id": {"$eq": str(document_id)}},
         )

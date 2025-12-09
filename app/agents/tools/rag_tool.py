@@ -25,7 +25,7 @@ def create_knowledge_base_tool(collection_name: str):
         """
         try:
             vector_store = get_vector_store(collection_name)
-            docs = vector_store.similarity_search(query, k=4)
+            docs = vector_store.similarity_search(query, k=6)
 
             if not docs:
                 return "No relevant documents found in the knowledge base."

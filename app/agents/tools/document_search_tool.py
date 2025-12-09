@@ -108,7 +108,7 @@ def create_document_search_tool(
                 # Perform similarity search with filter
                 docs = vector_store.similarity_search(
                     query,
-                    k=4,
+                    k=6,
                     filter={"document_id": {"$eq": str(document_id)}},
                 )
 

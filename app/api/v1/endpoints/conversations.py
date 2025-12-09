@@ -21,7 +21,7 @@ from app.schemas.conversation import (
 from app.services.conversation import ConversationService
 from app.services.chatbot import ChatbotService
 from app.models.knowledge_base import KnowledgeBase
-from app.agents.rag_agent import create_rag_agent, run_agent
+from app.agents.workflows.rag_agent import create_rag_agent, run_agent
 from app.db.checkpointer import get_checkpointer
 
 router = APIRouter()
