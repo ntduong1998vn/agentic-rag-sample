@@ -1,9 +1,8 @@
-"""RAG tool for searching context via retrieval."""
-
 from langchain_core.tools import tool
 
 from app.core.logging import get_logger
 from app.rag.vectorstores.s3_store import get_vector_store
+from app.rag.retrievers.enhanced_retriever import retrieve_with_enhanced_retriever
 
 logger = get_logger(__name__)
 
@@ -26,6 +25,19 @@ def create_knowledge_base_tool(collection_name: str):
         try:
             vector_store = get_vector_store(collection_name)
             docs = vector_store.similarity_search(query, k=6)
+            # # Get base retriever from vector store
+            # base_retriever = vector_store.as_retriever(
+            #     search_type="similarity",
+            #     search_kwargs={"k": 6},
+            # )
+
+            # # Use enhanced retrieval with Multi-Query + Compression
+            # docs = retrieve_with_enhanced_retriever(
+            #     base_retriever=base_retriever,
+            #     query=query,
+            #     use_multi_query=True,
+            #     use_compression=False,
+            # )
 
             if not docs:
                 return "No relevant documents found in the knowledge base."

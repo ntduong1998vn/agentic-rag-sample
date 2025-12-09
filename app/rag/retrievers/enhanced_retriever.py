@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 def get_llm_for_retriever() -> ChatGoogleGenerativeAI:
     """Get a lightweight LLM for retriever operations."""
     return ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash-lite",
+        model="gemini-2.5-flash-lite",
         google_api_key=settings.google_api_key,
         temperature=0.3,
     )

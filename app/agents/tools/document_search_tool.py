@@ -1,5 +1,3 @@
-"""Tool for searching content within a specific document."""
-
 from uuid import UUID
 from typing import Optional
 
@@ -11,6 +9,7 @@ from app.models.document import Document
 from app.models.conversation_document import ConversationDocument
 from app.models.knowledge_base import KnowledgeBase
 from app.rag.vectorstores.s3_store import get_vector_store
+from app.rag.retrievers.enhanced_retriever import retrieve_with_enhanced_retriever
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -25,10 +24,10 @@ def create_document_search_tool(
     Create a document-specific search tool.
 
     This tool allows searching for content within a specific document by filtering
-    on the document_id metadata in Qdrant.
+    on the document_id metadata in vector store.
 
     Args:
-        collection_name: The Qdrant collection name.
+        collection_name: The vector store collection name.
         chatbot_id: The chatbot ID to find documents for.
         conversation_id: Optional conversation ID for conversation-specific documents.
 
@@ -96,21 +95,34 @@ def create_document_search_tool(
                     if conv_documents:
                         document_id = conv_documents[0].id
                         found_document_name = conv_documents[0].file_name
-                        # Note: conversation documents may use different collection
-                        # We'll use the one passed in for now
 
                 if not document_id:
                     return f"Không tìm thấy tài liệu '{document_name}' hoặc tài liệu chưa được xử lý hoàn tất."
 
-                # Search in S3 Vectors with document_id filter
+                # Search in vector store with document_id filter
                 vector_store = get_vector_store(collection_name)
 
-                # Perform similarity search with filter
                 docs = vector_store.similarity_search(
                     query,
                     k=6,
                     filter={"document_id": {"$eq": str(document_id)}},
                 )
+                # # Get base retriever with document filter
+                # base_retriever = vector_store.as_retriever(
+                #     search_type="similarity",
+                #     search_kwargs={
+                #         "k": 6,
+                #         "filter": {"document_id": {"$eq": str(document_id)}},
+                #     },
+                # )
+
+                # # Use enhanced retrieval with Multi-Query + Compression
+                # docs = retrieve_with_enhanced_retriever(
+                #     base_retriever=base_retriever,
+                #     query=query,
+                #     use_multi_query=True,
+                #     use_compression=False,
+                # )
 
                 if not docs:
                     return f"Không tìm thấy thông tin liên quan đến '{query}' trong tài liệu '{found_document_name}'."
