@@ -98,7 +98,7 @@ def add_documents_to_collection(
         doc.metadata["document_id"] = str(document_id)
 
     vector_store = get_vector_store(collection_name)
-    vector_store.add_documents(documents)
+    vector_store.add_documents(documents, batch_size=100)
 
     logger.info(f"Added {len(documents)} chunks to collection {collection_name}")
     return len(documents)

@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 
 # Gemini embedding model configuration
 GEMINI_EMBEDDING_MODEL = "models/embedding-001"
-GEMINI_EMBEDDING_DIMENSION = 768
+GEMINI_EMBEDDING_DIMENSION = 1024
 
 
 def get_gemini_embeddings() -> GoogleGenerativeAIEmbeddings:
