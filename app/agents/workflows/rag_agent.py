@@ -4,6 +4,7 @@ RAG Agent for chatbot conversations.
 Uses LangChain 1.0.0 create_agent (LangGraph-backed) with a knowledge base retrieval tool.
 """
 
+from app.agents.prompts import RAG_AGENT_SYSTEM_PROMPT
 from typing import List, Optional
 from uuid import UUID
 
@@ -60,21 +61,10 @@ def create_rag_agent(
         create_document_search_tool(collection_name, chatbot_id, conversation_id),
     ]
 
-    system_message = """You are a helpful AI assistant with access to a knowledge base.
-
-When answering questions:
-1. Use search_knowledge_base to search across all documents in the knowledge base.
-2. Use check_document_exists when the user asks if a specific document exists.
-3. Use search_document_content when the user asks about the content of a SPECIFIC document or file.
-   For example: "What is in document X?", "Tell me about file Y", "What does document Z say about...?"
-
-Always cite your sources when providing information from the knowledge base.
-If you cannot find relevant information, say so honestly."""
-
     agent = create_agent(
         model=llm,
         tools=tools,
-        system_prompt=system_message,
+        system_prompt=RAG_AGENT_SYSTEM_PROMPT,
         checkpointer=checkpointer,
     )
 
