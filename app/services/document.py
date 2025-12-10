@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models.document import Document
+from app.models.knowledge_base import KnowledgeBase
+from app.models.conversation_document import ConversationDocument
 from app.services.document_scanner import FileInfo
 from app.core.logging import get_logger
 
@@ -116,3 +118,49 @@ class DocumentService:
 
         self.db.commit()
         logger.info(f"Updated document {document_id} status to {status}")
+
+    def find_document_by_name(
+        self,
+        chatbot_id: UUID,
+        document_name: str,
+        conversation_id: Optional[UUID] = None,
+    ) -> Optional[tuple[UUID, str]]:
+        """
+        Find a document by name in knowledge base or conversation documents.
+        Returns a tuple of (document_id, file_name) if found, else None.
+        """
+        # Search in documents table (via knowledge_base)
+        knowledge_bases = (
+            self.db.query(KnowledgeBase)
+            .filter(KnowledgeBase.chatbot_id == chatbot_id)
+            .all()
+        )
+
+        for kb in knowledge_bases:
+            document = (
+                self.db.query(Document)
+                .filter(
+                    Document.knowledge_base_id == kb.id,
+                    Document.file_name.ilike(f"%{document_name}%"),
+                    Document.status == DocumentStatus.COMPLETE,
+                )
+                .first()
+            )
+            if document:
+                return (document.id, document.file_name)
+
+        # If not found, search in conversation documents
+        if conversation_id:
+            conv_document = (
+                self.db.query(ConversationDocument)
+                .filter(
+                    ConversationDocument.conversation_id == conversation_id,
+                    ConversationDocument.file_name.ilike(f"%{document_name}%"),
+                    ConversationDocument.status == DocumentStatus.COMPLETE,
+                )
+                .first()
+            )
+            if conv_document:
+                return (conv_document.id, conv_document.file_name)
+
+        return None

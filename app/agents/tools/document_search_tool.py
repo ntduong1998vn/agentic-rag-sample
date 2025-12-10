@@ -5,11 +5,9 @@ from langchain_core.tools import tool
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.models.document import Document
-from app.models.conversation_document import ConversationDocument
-from app.models.knowledge_base import KnowledgeBase
+from app.services.document import DocumentService
 from app.rag.vectorstores.s3_store import get_vector_store
-from app.rag.retrievers.enhanced_retriever import retrieve_with_enhanced_retriever
+
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -52,49 +50,18 @@ def create_document_search_tool(
             db: Session = SessionLocal()
             try:
                 # Find the document by name
-                document_id = None
-                found_document_name = None
-
-                # Search in documents table (via knowledge_base)
-                knowledge_bases = (
-                    db.query(KnowledgeBase)
-                    .filter(KnowledgeBase.chatbot_id == chatbot_id)
-                    .all()
+                document_service = DocumentService(db)
+                result = document_service.find_document_by_name(
+                    chatbot_id=chatbot_id,
+                    document_name=document_name,
+                    conversation_id=conversation_id,
                 )
 
-                for kb in knowledge_bases:
-                    documents = (
-                        db.query(Document)
-                        .filter(
-                            Document.knowledge_base_id == kb.id,
-                            Document.file_name.ilike(f"%{document_name}%"),
-                            Document.status
-                            == "complete",  # Only search in completed documents
-                        )
-                        .all()
-                    )
-
-                    if documents:
-                        # Use the first match
-                        document_id = documents[0].id
-                        found_document_name = documents[0].file_name
-                        break
-
-                # If not found in knowledge base, search in conversation documents
-                if not document_id and conversation_id:
-                    conv_documents = (
-                        db.query(ConversationDocument)
-                        .filter(
-                            ConversationDocument.conversation_id == conversation_id,
-                            ConversationDocument.file_name.ilike(f"%{document_name}%"),
-                            ConversationDocument.status == "complete",
-                        )
-                        .all()
-                    )
-
-                    if conv_documents:
-                        document_id = conv_documents[0].id
-                        found_document_name = conv_documents[0].file_name
+                if result:
+                    document_id, found_document_name = result
+                else:
+                    document_id = None
+                    found_document_name = None
 
                 if not document_id:
                     return f"Không tìm thấy tài liệu '{document_name}' hoặc tài liệu chưa được xử lý hoàn tất."

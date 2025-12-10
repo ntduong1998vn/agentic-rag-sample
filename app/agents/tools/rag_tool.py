@@ -25,19 +25,6 @@ def create_knowledge_base_tool(collection_name: str):
         try:
             vector_store = get_vector_store(collection_name)
             docs = vector_store.similarity_search(query, k=6)
-            # # Get base retriever from vector store
-            # base_retriever = vector_store.as_retriever(
-            #     search_type="similarity",
-            #     search_kwargs={"k": 6},
-            # )
-
-            # # Use enhanced retrieval with Multi-Query + Compression
-            # docs = retrieve_with_enhanced_retriever(
-            #     base_retriever=base_retriever,
-            #     query=query,
-            #     use_multi_query=True,
-            #     use_compression=False,
-            # )
 
             if not docs:
                 return "No relevant documents found in the knowledge base."
