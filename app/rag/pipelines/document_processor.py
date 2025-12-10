@@ -42,7 +42,7 @@ class DocumentProcessor:
             f"Initialized DocumentProcessor with chunk_size={self.chunk_size}, overlap={self.chunk_overlap}"
         )
 
-    def load_document(self, file_path: str) -> str:
+    def load_document(self, file_path: str) -> List[LangchainDocument]:
         """
         Load document content from file using unstructured.
 
@@ -50,7 +50,7 @@ class DocumentProcessor:
             file_path: Path to the document file
 
         Returns:
-            Extracted text content
+            List of Langchain Documents with metadata
         """
         path = Path(file_path)
         if not path.exists():
@@ -58,46 +58,22 @@ class DocumentProcessor:
 
         logger.info(f"Loading document: {path.name}")
 
-        # Use unstructured to partition the document
-        elements = partition(filename=str(path))
+        elements = partition(filename=str(path), find_subtable=False)
 
-        # Combine all elements into text
-        text_parts = []
+        documents = []
         for element in elements:
+            metadata = (
+                element.metadata.to_dict()
+                if hasattr(element.metadata, "to_dict")
+                else {}
+            )
+
             text = str(element)
             if text.strip():
-                text_parts.append(text)
+                documents.append(
+                    LangchainDocument(page_content=text, metadata=metadata)
+                )
 
-        content = "\n\n".join(text_parts)
-        logger.debug(f"Loaded {len(content)} characters from {path.name}")
-        return content
-
-    def chunk_text(self, text: str, metadata: dict = None) -> List[LangchainDocument]:
-        """
-        Split text into chunks.
-
-        Args:
-            text: Text content to chunk
-            metadata: Optional metadata to attach to each chunk
-
-        Returns:
-            List of Langchain Document objects
-        """
-        if not text.strip():
-            logger.warning("Empty text provided for chunking")
-            return []
-
-        metadata = metadata or {}
-
-        chunks = self.text_splitter.split_text(text)
-        documents = [
-            LangchainDocument(
-                page_content=chunk, metadata={**metadata, "chunk_index": i}
-            )
-            for i, chunk in enumerate(chunks)
-        ]
-
-        logger.debug(f"Created {len(documents)} chunks from text")
         return documents
 
     def process_file(self, file_path: str, file_name: str) -> List[LangchainDocument]:
@@ -113,15 +89,22 @@ class DocumentProcessor:
         """
         logger.info(f"Processing file: {file_name}")
 
-        # Load content
-        content = self.load_document(file_path)
+        # Load content as documents with metadata
+        raw_documents = self.load_document(file_path)
 
-        # Create chunks with file metadata
-        metadata = {
+        # Merge file metadata into each document's metadata
+        file_metadata = {
             "source": file_path,
             "file_name": file_name,
         }
-        chunks = self.chunk_text(content, metadata)
+
+        for doc in raw_documents:
+            doc.metadata.update(file_metadata)
+
+        chunks = self.text_splitter.split_documents(raw_documents)
+
+        for i, chunk in enumerate(chunks):
+            chunk.metadata["chunk_index"] = i
 
         logger.info(f"Processed {file_name}: {len(chunks)} chunks created")
         return chunks

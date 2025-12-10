@@ -92,7 +92,12 @@ def get_vector_store(index_name: str) -> AmazonS3Vectors:
         aws_secret_access_key=settings.aws_secret_access_key,
         create_index_if_not_exist=True,
         distance_metric="cosine",
-        non_filterable_metadata_keys=["_page_content", "source"],
+        non_filterable_metadata_keys=[
+            "_page_content",
+            "filetype",
+            "filename",
+            "file_directory",
+        ],
         page_content_metadata_key="_page_content",
     )
 
@@ -160,28 +165,43 @@ def delete_document_vectors(index_name: str, document_id: UUID) -> None:
     """
     try:
         vector_store = get_vector_store(index_name)
+        total_deleted = 0
 
-        # Search for vectors with this document_id to get their IDs
-        # Use a dummy query (actual text doesn't matter since we filter by document_id)
-        # Note: Empty string causes Bedrock validation error (minLength: 1)
-        results = vector_store.similarity_search(
-            query="all",  # Dummy query to satisfy embedding model requirements
-            k=1000,  # Get as many as possible
-            filter={"document_id": {"$eq": str(document_id)}},
-        )
+        while True:
+            # Search for vectors with this document_id to get their IDs
+            # Use a dummy query (actual text doesn't matter since we filter by document_id)
+            # Note: S3 Vectors QueryVectors limit topK to 100
+            results = vector_store.similarity_search(
+                query="all",  # Dummy query to satisfy embedding model requirements
+                k=100,  # Max allowed by S3 Vectors QueryVectors
+                filter={"document_id": {"$eq": str(document_id)}},
+            )
 
-        if results:
+            if not results:
+                break
+
             # Get the IDs from the results
             ids_to_delete = [doc.id for doc in results if doc.id]
-            if ids_to_delete:
-                vector_store.delete(ids=ids_to_delete)
-                logger.info(
-                    f"Deleted {len(ids_to_delete)} vectors for document {document_id} from index {index_name}"
-                )
-            else:
+
+            if not ids_to_delete:
                 logger.warning(
                     f"Found documents but no IDs to delete for document {document_id}"
                 )
+                break
+
+            vector_store.delete(ids=ids_to_delete)
+            count = len(ids_to_delete)
+            total_deleted += count
+            logger.debug(f"Deleted batch of {count} vectors for document {document_id}")
+
+            # If we got fewer than k results, we've likely found everything
+            if len(results) < 100:
+                break
+
+        if total_deleted > 0:
+            logger.info(
+                f"Deleted total {total_deleted} vectors for document {document_id} from index {index_name}"
+            )
         else:
             logger.debug(
                 f"No vectors found for document {document_id} in index {index_name}"
