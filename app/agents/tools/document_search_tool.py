@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 from typing import Optional
 
@@ -106,6 +107,15 @@ def create_document_search_tool(
 
                 # Sort by chunk_index for reading order
                 all_chunks.sort(key=lambda x: x.metadata.get("chunk_index", 0))
+
+                # Log metadata of all found chunks
+                logger.info(
+                    f"Found {len(all_chunks)} chunks for document '{found_document_name}' (ID: {document_id})"
+                )
+                for i, chunk in enumerate(all_chunks):
+                    logger.info(
+                        f"Chunk {i} metadata: {json.dumps(chunk.metadata, indent=2, default=str, ensure_ascii=False)}"
+                    )
 
                 # Format results
                 results = [

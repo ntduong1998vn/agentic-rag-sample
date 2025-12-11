@@ -1,3 +1,4 @@
+import json
 from langchain_core.tools import tool
 
 from app.core.logging import get_logger
@@ -64,6 +65,15 @@ def create_knowledge_base_tool(collection_name: str):
                     x.metadata.get("chunk_index", 0),
                 )
             )
+
+            # Log metadata of all found chunks
+            logger.info(
+                f"Found {len(all_chunks)} chunks in knowledge base query='{query}'"
+            )
+            for i, chunk in enumerate(all_chunks):
+                logger.info(
+                    f"Chunk {i} metadata: {json.dumps(chunk.metadata, indent=2, default=str, ensure_ascii=False)}"
+                )
 
             # Format results
             results = []

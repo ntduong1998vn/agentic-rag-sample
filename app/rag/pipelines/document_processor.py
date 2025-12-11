@@ -98,7 +98,21 @@ class DocumentProcessor:
             "file_name": file_name,
         }
 
+        allowed_keys = {
+            "filetype",
+            "source",
+            "file_name",
+            "chunk_index",
+            "document_id",
+            "file_directory",
+            "filename",
+            "page_name",
+            "page_number",
+            "last_modified",
+        }
+
         for doc in raw_documents:
+            doc.metadata = {k: v for k, v in doc.metadata.items() if k in allowed_keys}
             doc.metadata.update(file_metadata)
 
         chunks = self.text_splitter.split_documents(raw_documents)

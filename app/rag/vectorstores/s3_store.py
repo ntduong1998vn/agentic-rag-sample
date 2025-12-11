@@ -1,5 +1,6 @@
 """Amazon S3 Vectors store implementation using langchain-aws."""
 
+import json
 from typing import List
 from uuid import UUID
 
@@ -72,7 +73,6 @@ def get_vector_store(index_name: str) -> AmazonS3Vectors:
     """
     # Normalize index name to comply with S3 Vectors requirements
     normalized_name = normalize_index_name(index_name)
-    logger.debug(f"Index name: {index_name} -> normalized: {normalized_name}")
 
     embeddings = BedrockEmbeddings(
         model_id="amazon.titan-embed-text-v1",
@@ -102,22 +102,6 @@ def get_vector_store(index_name: str) -> AmazonS3Vectors:
     )
 
 
-def ensure_index_exists(index_name: str, vector_size: int = None) -> None:
-    """
-    Ensure an index exists in S3 Vectors.
-
-    Note: With create_index_if_not_exist=True in get_vector_store,
-    the index is created automatically when first adding documents.
-
-    Args:
-        index_name: Name of the index
-        vector_size: Vector dimension (not used - determined automatically)
-    """
-    # S3 Vectors creates the index automatically when adding documents
-    # if create_index_if_not_exist=True
-    logger.debug(f"Index will be auto-created if not exists: {index_name}")
-
-
 def add_documents_to_index(
     index_name: str,
     documents: List[LangchainDocument],
@@ -141,10 +125,12 @@ def add_documents_to_index(
     # Add document_id to metadata for each chunk
     for doc in documents:
         doc.metadata["document_id"] = str(document_id)
+        logger.info(
+            f"Document metadata: {json.dumps(doc.metadata, indent=2, default=str, ensure_ascii=False)}"
+        )
 
-    logger.info(f"Adding {len(documents)} documents to index: {index_name}")
     vector_store = get_vector_store(index_name)
-    ids = vector_store.add_documents(documents)
+    ids = vector_store.add_documents(documents, batch_size=100, use_async_db=True)
 
     logger.info(
         f"Successfully added {len(documents)} chunks to index {index_name}, IDs: {ids[:3]}..."

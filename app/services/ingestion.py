@@ -13,7 +13,6 @@ from app.services.document_scanner import DocumentScanner
 from app.services.document import DocumentService, DocumentStatus
 from app.rag.pipelines.document_processor import DocumentProcessor
 from app.rag.vectorstores.s3_store import (
-    ensure_index_exists,
     add_documents_to_index,
     delete_document_vectors,
 )
@@ -85,18 +84,7 @@ class IngestionService:
             result.errors.append(error_msg)
             return result
 
-        # Step 1b: Ensure S3 Vectors index exists
-        try:
-            ensure_index_exists(
-                knowledge_base.collection_name, knowledge_base.vector_dimension
-            )
-        except Exception as e:
-            error_msg = f"Failed to create S3 Vectors index: {str(e)}"
-            logger.error(error_msg)
-            result.errors.append(error_msg)
-            return result
-
-        # Step 1c: Scan folder and register documents
+        # Step 1: Scan folder and register documents
         try:
             files = self.document_scanner.scan_folder(folder_path)
             if not files:
