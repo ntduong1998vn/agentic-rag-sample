@@ -1,4 +1,5 @@
 import json
+import warnings
 from uuid import UUID
 from typing import Optional
 
@@ -12,6 +13,15 @@ from app.rag.vectorstores.s3_store import get_vector_store, get_adjacent_chunks
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+# DEPRECATION WARNING
+warnings.warn(
+    "document_search_tool.py is deprecated and will be removed in a future version. "
+    "Please use unified_search_tool.create_unified_search_tool() instead. "
+    "See app/agents/tools/README.md for migration guide.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def create_document_search_tool(

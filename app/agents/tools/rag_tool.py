@@ -1,10 +1,20 @@
 import json
+import warnings
 from langchain_core.tools import tool
 
 from app.core.logging import get_logger
 from app.rag.vectorstores.s3_store import get_vector_store, get_adjacent_chunks
 
 logger = get_logger(__name__)
+
+# DEPRECATION WARNING
+warnings.warn(
+    "rag_tool.py is deprecated and will be removed in a future version. "
+    "Please use unified_search_tool.create_unified_search_tool() instead. "
+    "See app/agents/tools/README.md for migration guide.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def create_knowledge_base_tool(collection_name: str):

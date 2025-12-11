@@ -14,9 +14,8 @@ from langchain.agents import create_agent
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.agents.tools.rag_tool import create_knowledge_base_tool
+from app.agents.tools.unified_search_tool import create_unified_search_tool
 from app.agents.tools.document_check_tool import create_document_check_tool
-from app.agents.tools.document_search_tool import create_document_search_tool
 from app.agents.tools.document_summarize_tool import create_document_summarize_tool
 from langsmith.wrappers import wrap_gemini
 
@@ -57,9 +56,8 @@ def create_rag_agent(
     """
     llm = get_llm(model_name)
     tools = [
-        create_knowledge_base_tool(collection_name),
+        create_unified_search_tool(collection_name, chatbot_id, conversation_id),
         create_document_check_tool(chatbot_id, conversation_id),
-        create_document_search_tool(collection_name, chatbot_id, conversation_id),
         create_document_summarize_tool(collection_name, chatbot_id, conversation_id),
     ]
 
