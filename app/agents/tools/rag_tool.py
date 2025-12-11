@@ -24,10 +24,24 @@ def create_knowledge_base_tool(collection_name: str):
         """
         try:
             vector_store = get_vector_store(collection_name)
-            docs = vector_store.similarity_search(query, k=6)
+
+            # Use as_retriever with similarity_score_threshold to automatically filter by score
+            retriever = vector_store.as_retriever(
+                search_type="similarity_score_threshold",
+                search_kwargs={
+                    "k": 6,
+                    "score_threshold": 0.7,
+                },
+            )
+
+            docs = retriever.invoke(query)
 
             if not docs:
-                return "No relevant documents found in the knowledge base."
+                return "No relevant documents found in the knowledge base with high accuracy (score > 0.7)."
+
+            logger.info(
+                f"Retrieved {len(docs)} documents with score > 0.7 for query='{query}'"
+            )
 
             # Parent Document Retriever: collect unique (document_id, chunk_index) pairs
             seen_chunks = set()  # (document_id, chunk_index)

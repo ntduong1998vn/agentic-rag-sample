@@ -67,17 +67,23 @@ def create_document_search_tool(
                 if not document_id:
                     return f"Không tìm thấy tài liệu '{document_name}' hoặc tài liệu chưa được xử lý hoàn tất."
 
-                # Search in vector store with document_id filter
+                # Search in vector store with document_id filter using retriever
                 vector_store = get_vector_store(collection_name)
 
-                docs = vector_store.similarity_search(
-                    query,
-                    k=6,
-                    filter={"document_id": {"$eq": str(document_id)}},
+                # Use as_retriever with similarity_score_threshold to automatically filter by score
+                retriever = vector_store.as_retriever(
+                    search_type="similarity_score_threshold",
+                    search_kwargs={
+                        "k": 6,
+                        "score_threshold": 0.7,
+                        "filter": {"document_id": {"$eq": str(document_id)}},
+                    },
                 )
 
+                docs = retriever.invoke(query)
+
                 if not docs:
-                    return f"Không tìm thấy thông tin liên quan đến '{query}' trong tài liệu '{found_document_name}'."
+                    return f"Không tìm thấy thông tin liên quan đến '{query}' trong tài liệu '{found_document_name}' với độ chính xác cao (score > 0.7)."
 
                 # Parent Document Retriever: collect unique chunk_index values
                 seen_chunks = set()
