@@ -210,3 +210,55 @@ def delete_document_vectors(index_name: str, document_id: UUID) -> None:
     except Exception as e:
         logger.error(f"Error deleting vectors for document {document_id}: {e}")
         # Don't raise - this is a cleanup operation that shouldn't block re-processing
+
+
+def get_adjacent_chunks(
+    index_name: str,
+    document_id: str,
+    center_chunk_index: int,
+    adjacent_count: int = 5,
+) -> List[LangchainDocument]:
+    """
+    Get adjacent chunks around a center chunk for Parent Document Retriever pattern.
+
+    Given a center chunk, retrieves chunks within the range:
+    [center - adjacent_count, center + adjacent_count]
+    e.g., center=3, adjacent_count=5 -> chunks 0-8 (capped at 0)
+
+    Args:
+        index_name: Name of the S3 Vectors index
+        document_id: ID of the document to get chunks from
+        center_chunk_index: The chunk_index of the center chunk
+        adjacent_count: Number of chunks to get on each side (default: 5)
+
+    Returns:
+        List of LangchainDocument objects sorted by chunk_index
+    """
+    try:
+        vector_store = get_vector_store(index_name)
+
+        # Calculate the range of chunk indices to fetch
+        start_index = max(0, center_chunk_index - adjacent_count)
+        end_index = center_chunk_index + adjacent_count
+
+        # Use $gte and $lte operators to filter chunk_index range directly
+        results = vector_store.similarity_search(
+            query="all",  # Dummy query
+            k=100,  # Max chunks to retrieve
+            filter={
+                "$and": [
+                    {"document_id": {"$eq": document_id}},
+                    {"chunk_index": {"$gte": start_index}},
+                    {"chunk_index": {"$lte": end_index}},
+                ]
+            },
+        )
+
+        # Sort by chunk_index to maintain order
+        results.sort(key=lambda x: x.metadata.get("chunk_index", 0))
+
+        return results
+
+    except Exception as e:
+        logger.error(f"Error getting adjacent chunks: {e}")
+        return []

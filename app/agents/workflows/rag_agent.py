@@ -4,7 +4,7 @@ RAG Agent for chatbot conversations.
 Uses LangChain 1.0.0 create_agent (LangGraph-backed) with a knowledge base retrieval tool.
 """
 
-from app.agents.prompts import RAG_AGENT_SYSTEM_PROMPT
+from app.agents.prompts import RAG_SYSTEM_PROMPT
 from typing import List, Optional
 from uuid import UUID
 
@@ -64,7 +64,7 @@ def create_rag_agent(
     agent = create_agent(
         model=llm,
         tools=tools,
-        system_prompt=RAG_AGENT_SYSTEM_PROMPT,
+        system_prompt=RAG_SYSTEM_PROMPT,
         checkpointer=checkpointer,
     )
 

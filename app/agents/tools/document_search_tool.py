@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.services.document import DocumentService
-from app.rag.vectorstores.s3_store import get_vector_store
+from app.rag.vectorstores.s3_store import get_vector_store, get_adjacent_chunks
 
 from app.core.logging import get_logger
 
@@ -74,32 +74,46 @@ def create_document_search_tool(
                     k=6,
                     filter={"document_id": {"$eq": str(document_id)}},
                 )
-                # # Get base retriever with document filter
-                # base_retriever = vector_store.as_retriever(
-                #     search_type="similarity",
-                #     search_kwargs={
-                #         "k": 6,
-                #         "filter": {"document_id": {"$eq": str(document_id)}},
-                #     },
-                # )
-
-                # # Use enhanced retrieval with Multi-Query + Compression
-                # docs = retrieve_with_enhanced_retriever(
-                #     base_retriever=base_retriever,
-                #     query=query,
-                #     use_multi_query=True,
-                #     use_compression=False,
-                # )
 
                 if not docs:
                     return f"Không tìm thấy thông tin liên quan đến '{query}' trong tài liệu '{found_document_name}'."
+
+                # Parent Document Retriever: collect unique chunk_index values
+                seen_chunks = set()
+                all_chunks = []
+
+                for doc in docs:
+                    chunk_index = doc.metadata.get("chunk_index")
+
+                    if chunk_index is not None:
+                        # Get adjacent chunks for this document
+                        adjacent_chunks = get_adjacent_chunks(
+                            index_name=collection_name,
+                            document_id=str(document_id),
+                            center_chunk_index=chunk_index,
+                            adjacent_count=5,  # 5 chunks on each side = ~10 adjacent chunks
+                        )
+
+                        for adj_chunk in adjacent_chunks:
+                            adj_chunk_idx = adj_chunk.metadata.get("chunk_index")
+
+                            if adj_chunk_idx not in seen_chunks:
+                                seen_chunks.add(adj_chunk_idx)
+                                all_chunks.append(adj_chunk)
+                    else:
+                        # Fallback: no chunk_index metadata, use original doc
+                        all_chunks.append(doc)
+
+                # Sort by chunk_index for reading order
+                all_chunks.sort(key=lambda x: x.metadata.get("chunk_index", 0))
 
                 # Format results
                 results = [
                     f"Kết quả tìm kiếm trong tài liệu '{found_document_name}':\n"
                 ]
-                for i, doc in enumerate(docs, 1):
-                    results.append(f"[Đoạn {i}]\n{doc.page_content}")
+                for i, doc in enumerate(all_chunks, 1):
+                    chunk_idx = doc.metadata.get("chunk_index", "?")
+                    results.append(f"[Đoạn {i}, Chunk {chunk_idx}]\n{doc.page_content}")
 
                 return "\n\n---\n\n".join(results)
 
