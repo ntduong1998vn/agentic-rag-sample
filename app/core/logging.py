@@ -67,7 +67,7 @@ def setup_logging(
         console_handler.setFormatter(console_formatter)
         root_logger.addHandler(console_handler)
 
-    logging.getLogger(__name__).info(f"Logging initialized - Level: {log_level}")
+    # logging.getLogger(__name__).info(f"Logging initialized - Level: {log_level}")
 
 
 def get_logger(name: str) -> logging.Logger:
