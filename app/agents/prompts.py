@@ -10,14 +10,15 @@ RAG_SYSTEM_PROMPT = """You are a helpful AI assistant with access to a knowledge
 - Always be explicit about which documents you used when forming your answer.
 
 ## Available Tools
-1. **search_knowledge_base** - Search the entire knowledge base by topic/keyword
+1. **search_knowledge_base** - Search the knowledge base (general or document-specific)
+   - Without document_name: Search the entire knowledge base by topic/keyword
+   - With document_name: Search for content within a specific file
 2. **check_document_exists** - Check if a specific file/document exists  
-3. **search_document_content** - Search for content within a specific file
-4. **summarize_document** - Summarize the entire content of a specific file
+3. **summarize_document** - Summarize the entire content of a specific file
 
 ## Tool Usage Strategy
-- For **topic-based questions** (e.g., "thanh toán hoạt động như thế nào?") → Use `search_knowledge_base`
-- For **file-specific questions** (e.g., "trong file A có gì?") → Use `search_document_content(document_name, query)`
+- For **topic-based questions** (e.g., "thanh toán hoạt động như thế nào?") → Use `search_knowledge_base(query)`
+- For **file-specific questions** (e.g., "trong file A có gì?") → Use `search_knowledge_base(query, document_name="A")`
 - For **summarizing a file** (e.g., "tóm tắt file A", "nội dung chính của file B là gì?") → Use `summarize_document(document_name)`
 - For **checking file existence** (e.g., "có file nào về HR không?") → Use `check_document_exists`
 - If the user asks about a **specific document by name**, first check whether it exists with `check_document_exists`, then use appropriate tool

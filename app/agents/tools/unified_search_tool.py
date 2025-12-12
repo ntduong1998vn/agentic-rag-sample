@@ -1,4 +1,3 @@
-import json
 from uuid import UUID
 from typing import Optional, List
 from langchain_core.documents import Document
@@ -23,13 +22,13 @@ def _retrieve_and_expand_chunks(
 ) -> List[Document]:
     """
     Core retrieval logic with Parent Document Retriever expansion.
-    
+
     This function handles:
     1. Similarity search with score threshold
     2. Adjacent chunk retrieval for context
     3. Deduplication
     4. Sorting by document_id and chunk_index
-    
+
     Args:
         collection_name: The vector store collection name.
         query: The search query.
@@ -37,46 +36,49 @@ def _retrieve_and_expand_chunks(
         k: Number of top results to retrieve.
         score_threshold: Minimum similarity score threshold.
         adjacent_count: Number of adjacent chunks to retrieve on each side.
-    
+
     Returns:
         List of expanded Document chunks, sorted by document_id and chunk_index.
     """
     vector_store = get_vector_store(collection_name)
-    
+
     # Build search kwargs
     search_kwargs = {
         "k": k,
-        "score_threshold": score_threshold,
     }
-    
+
     # Add document_id filter if specified
     if document_id_filter:
         search_kwargs["filter"] = {"document_id": {"$eq": document_id_filter}}
-    
-    # Use retriever with similarity_score_threshold
+
+    # Use retriever with similarity
     retriever = vector_store.as_retriever(
-        search_type="similarity_score_threshold",
+        search_type="similarity",
         search_kwargs=search_kwargs,
     )
-    
+
     docs = retriever.invoke(query)
-    
+
     if not docs:
         return []
-    
+
     logger.info(
         f"Retrieved {len(docs)} documents with score > {score_threshold} for query='{query}'"
-        + (f" (filtered by document_id={document_id_filter})" if document_id_filter else "")
+        + (
+            f" (filtered by document_id={document_id_filter})"
+            if document_id_filter
+            else ""
+        )
     )
-    
+
     # Parent Document Retriever: collect unique (document_id, chunk_index) pairs
     seen_chunks = set()  # (document_id, chunk_index)
     all_chunks = []
-    
+
     for doc in docs:
         doc_id = doc.metadata.get("document_id")
         chunk_index = doc.metadata.get("chunk_index")
-        
+
         if doc_id and chunk_index is not None:
             # Get adjacent chunks for this document
             adjacent_chunks = get_adjacent_chunks(
@@ -85,19 +87,19 @@ def _retrieve_and_expand_chunks(
                 center_chunk_index=chunk_index,
                 adjacent_count=adjacent_count,
             )
-            
+
             for adj_chunk in adjacent_chunks:
                 adj_doc_id = adj_chunk.metadata.get("document_id")
                 adj_chunk_idx = adj_chunk.metadata.get("chunk_index")
                 key = (adj_doc_id, adj_chunk_idx)
-                
+
                 if key not in seen_chunks:
                     seen_chunks.add(key)
                     all_chunks.append(adj_chunk)
         else:
             # Fallback: no chunk_index metadata, use original doc
             all_chunks.append(doc)
-    
+
     # Sort by document_id, then by chunk_index for reading order
     all_chunks.sort(
         key=lambda x: (
@@ -105,14 +107,10 @@ def _retrieve_and_expand_chunks(
             x.metadata.get("chunk_index", 0),
         )
     )
-    
+
     # Log metadata of all found chunks
     logger.info(f"Found {len(all_chunks)} chunks (after expansion) for query='{query}'")
-    for i, chunk in enumerate(all_chunks):
-        logger.info(
-            f"Chunk {i} metadata: {json.dumps(chunk.metadata, indent=2, default=str, ensure_ascii=False)}"
-        )
-    
+
     return all_chunks
 
 

@@ -37,10 +37,10 @@ def create_knowledge_base_tool(collection_name: str):
 
             # Use as_retriever with similarity_score_threshold to automatically filter by score
             retriever = vector_store.as_retriever(
-                search_type="similarity_score_threshold",
+                search_type="similarity",
                 search_kwargs={
                     "k": 6,
-                    "score_threshold": 0.7,
+                    # "score_threshold": 0.7,
                 },
             )
 
@@ -94,10 +94,6 @@ def create_knowledge_base_tool(collection_name: str):
             logger.info(
                 f"Found {len(all_chunks)} chunks in knowledge base query='{query}'"
             )
-            for i, chunk in enumerate(all_chunks):
-                logger.info(
-                    f"Chunk {i} metadata: {json.dumps(chunk.metadata, indent=2, default=str, ensure_ascii=False)}"
-                )
 
             # Format results
             results = []

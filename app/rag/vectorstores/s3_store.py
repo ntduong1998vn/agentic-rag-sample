@@ -125,9 +125,6 @@ def add_documents_to_index(
     # Add document_id to metadata for each chunk
     for doc in documents:
         doc.metadata["document_id"] = str(document_id)
-        logger.info(
-            f"Document metadata: {json.dumps(doc.metadata, indent=2, default=str, ensure_ascii=False)}"
-        )
 
     vector_store = get_vector_store(index_name)
     ids = vector_store.add_documents(documents, batch_size=100, use_async_db=True)

@@ -82,10 +82,10 @@ def create_document_search_tool(
 
                 # Use as_retriever with similarity_score_threshold to automatically filter by score
                 retriever = vector_store.as_retriever(
-                    search_type="similarity_score_threshold",
+                    search_type="similarity",
                     search_kwargs={
                         "k": 6,
-                        "score_threshold": 0.7,
+                        # "score_threshold": 0.7,
                         "filter": {"document_id": {"$eq": str(document_id)}},
                     },
                 )
@@ -128,10 +128,6 @@ def create_document_search_tool(
                 logger.info(
                     f"Found {len(all_chunks)} chunks for document '{found_document_name}' (ID: {document_id})"
                 )
-                for i, chunk in enumerate(all_chunks):
-                    logger.info(
-                        f"Chunk {i} metadata: {json.dumps(chunk.metadata, indent=2, default=str, ensure_ascii=False)}"
-                    )
 
                 # Format results
                 results = [
