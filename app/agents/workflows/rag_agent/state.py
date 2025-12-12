@@ -5,8 +5,9 @@ This module defines the TypedDict classes used to manage state
 throughout the LangGraph workflow.
 """
 
-from typing import TypedDict, List, Literal, Optional, Any
-from langchain_core.messages import BaseMessage
+from typing import Annotated
+from typing import TypedDict, Literal, Optional, Any
+from langgraph.graph.message import add_messages
 
 
 class QAState(TypedDict, total=False):
@@ -24,14 +25,14 @@ class QAState(TypedDict, total=False):
     mode: Literal["simple", "complex"]  # Result of classification
 
     # Simple path
-    messages: List[BaseMessage]  # Tool call/response messages for ToolNode
+    messages: Annotated[list, add_messages]  # Tool call/response messages for ToolNode
     simple_answer: Optional[str]
 
     # Complex path (planning)
-    plan: List[str]  # ["Step 1: ...", "Step 2: ..."]
+    plan: list[str]  # ["Step 1: ...", "Step 2: ..."]
     current_step_index: int
-    step_results: List[str]  # Partial answers / notes per step
-    working_context: List[Any]  # Docs retrieved across steps
+    step_results: list[str]  # Partial answers / notes per step
+    working_context: list[Any]  # Docs retrieved across steps
     needs_plan_refine: bool  # Flag when plan needs refinement
     done: bool  # Flag when enough info gathered
 

@@ -6,6 +6,7 @@ Simple questions use embedded ReAct agent, while complex questions use multi-ste
 planning with refinement capabilities.
 """
 
+from langchain_core.messages.human import HumanMessage
 from typing import Optional
 from uuid import UUID
 
@@ -211,6 +212,7 @@ async def run_rag_agent(
         "collection_name": metadata.get("collection_name"),
         "conversation_id": metadata.get("conversation_id"),
         "thread_id": thread_id,  # For simple_qa_node to use with legacy agent
+        "messages": [HumanMessage(content=question)],
     }
 
     # Run config

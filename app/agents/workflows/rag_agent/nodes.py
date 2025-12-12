@@ -11,6 +11,7 @@ import re
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
 from langsmith.wrappers import wrap_gemini
+from langchain_core.messages.ai import AIMessage
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -161,14 +162,11 @@ def create_simple_qa_agent(
                 thread_id=thread_id,
             )
 
-            logger.info(
-                f"SimpleQANode completed. Response length: {len(response_text)}"
-            )
-
             return {
                 **state,
                 "final_answer": response_text,
                 "sources": sources,
+                "messages": [AIMessage(content=response_text)],
             }
 
         except Exception as e:
