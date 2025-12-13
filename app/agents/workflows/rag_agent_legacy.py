@@ -72,18 +72,13 @@ def create_rag_agent(
 
 
 def get_sources_from_messages(messages: list) -> List[dict]:
-    """Extract source documents from agent messages."""
+    """Extract source metadata from agent messages."""
     sources = []
     for msg in messages:
         if hasattr(msg, "content") and isinstance(msg.content, str):
             # Look for document citations in the response
             if "[Document" in msg.content:
-                sources.append(
-                    {
-                        "content": msg.content,
-                        "metadata": {"type": "knowledge_base_result"},
-                    }
-                )
+                sources.append({"type": "knowledge_base_result"})
     return sources
 
 
