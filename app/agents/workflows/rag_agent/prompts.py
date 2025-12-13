@@ -59,6 +59,16 @@ PLANNER_PROMPT = """You are a Business Analyst + System Architect. Create a mult
 ## Question
 {question}
 
+## Re-planning Context (if applicable)
+### Previous Plan
+{previous_plan}
+
+### Reason for Re-planning
+{refine_reason}
+
+### Results from Executed Steps
+{step_results}
+
 ## Instructions
 Create 3-8 steps, each step should be an atomic task:
 - Inventory relevant documents (files, modules, screens)
@@ -66,19 +76,13 @@ Create 3-8 steps, each step should be an atomic task:
 - If diagram needed, describe in text format (Mermaid)
 - Analyze impact (screens, APIs, DB)
 
-## JSON Format
-```json
-{{
-  "steps": [
-    "Step 1: Find documents describing business X",
-    "Step 2: Analyze main flow",
-    "Step 3: Identify actors and input/output",
-    ...
-  ]
-}}
-```
+If this is a re-planning request, consider the previous plan's shortcomings and the data already gathered to create a more effective plan.
 
-Return ONLY JSON, no additional text.
+## Examples of good steps:
+- "Step 1: Find documents describing business process X"
+- "Step 2: Analyze main workflow and identify decision points"
+- "Step 3: Identify actors, input data, and output data"
+- "Step 4: Map dependencies between components"
 """
 
 # =============================================================================
@@ -94,19 +98,16 @@ VALIDATE_PLAN_PROMPT = """Evaluate whether the following plan is sufficient to a
 {plan}
 
 ## Instructions
-- If the plan is too generic or missing important steps, propose a new plan.
-- If it's good, keep it as is.
+Analyze the plan carefully:
+- If the plan is too generic or missing important steps, indicate that it needs refinement (need_refine=true) and propose a new plan.
+- If the plan is good and covers all necessary aspects, indicate it's valid (need_refine=false).
+- Always provide a clear reason for your decision.
 
-## JSON Format
-```json
-{{
-  "need_refine": true/false,
-  "reason": "Brief explanation",
-  "new_plan": ["Step 1: ...", "Step 2: ..."]  // Only if need_refine = true
-}}
-```
-
-Return ONLY JSON:
+Examples of issues requiring refinement:
+- Missing critical analysis steps
+- Too vague or generic steps
+- Steps in wrong order
+- Missing documentation or data gathering steps
 """
 
 # =============================================================================
@@ -155,20 +156,26 @@ Index: {current_step_index}
 {step_results}
 
 ## Evaluation Guidelines
-1. Is there enough information to synthesize a final answer?
-2. Does the original plan need adjustment (missing steps, off track)?
-3. Should we continue to the next step?
+Analyze the current progress carefully:
 
-## JSON Format
-```json
-{{
-  "done": true/false,
-  "need_refine_plan": true/false,
-  "reason": "Brief explanation"
-}}
-```
+1. **Is there enough information to synthesize a final answer?**
+   - If yes, set done=true
+   - If no, set done=false and continue
+   
+2. **Does the original plan need adjustment?**
+   - Set need_refine_plan=true if:
+     - Plan is off track
+     - Missing critical steps discovered
+     - Steps need reordering
+   - Set need_refine_plan=false if plan is working well
+   
+3. **Provide clear reasoning**
+   - Explain why we should continue or stop
+   - Explain what needs to be refined if applicable
 
-Return ONLY JSON:
+Decision criteria:
+- done=true when all necessary information has been gathered
+- need_refine_plan=true only when current plan has structural issues
 """
 
 # =============================================================================

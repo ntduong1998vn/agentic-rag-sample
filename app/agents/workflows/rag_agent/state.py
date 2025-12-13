@@ -34,6 +34,7 @@ class QAState(TypedDict, total=False):
     step_results: list[str]  # Partial answers / notes per step
     working_context: list[Any]  # Docs retrieved across steps
     needs_plan_refine: bool  # Flag when plan needs refinement
+    refine_reason: Optional[str]  # Reason why plan needs refinement
     done: bool  # Flag when enough info gathered
 
     # Output

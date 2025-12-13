@@ -5,9 +5,9 @@ This module contains all the node functions that process state
 in the LangGraph workflow.
 """
 
-import json
-import re
+from typing import List
 
+from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
 from langsmith.wrappers import wrap_gemini
@@ -41,21 +41,8 @@ def get_llm(model_name: str = "gemini-2.5-flash-lite") -> ChatGoogleGenerativeAI
     )
 
 
-def safe_json_parse(text: str) -> dict:
-    """Safely parse JSON from LLM response, handling markdown code blocks."""
-    # Extract JSON from markdown code blocks if present
-    json_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
-    if json_match:
-        text = json_match.group(1)
-
-    try:
-        return json.loads(text.strip())
-    except json.JSONDecodeError:
-        return {}
-
-
 # =============================================================================
-# NODE: classify_question
+# LLM CONFIGURATION
 # =============================================================================
 
 
@@ -181,6 +168,42 @@ def create_simple_qa_agent(
 
 
 # =============================================================================
+# PYDANTIC MODELS FOR STRUCTURED OUTPUT
+# =============================================================================
+
+
+class PlanOutput(BaseModel):
+    """Structure for plan output from LLM."""
+
+    steps: List[str] = Field(
+        description="List of execution steps, each describing an atomic task to complete"
+    )
+
+
+class ValidatePlanOutput(BaseModel):
+    """Structure for plan validation output from LLM."""
+
+    need_refine: bool = Field(description="Whether the plan needs to be refined")
+    reason: str = Field(description="Brief explanation of validation decision")
+    new_plan: List[str] = Field(
+        default_factory=list,
+        description="New plan if refinement is needed, empty list otherwise",
+    )
+
+
+class EvaluateProgressOutput(BaseModel):
+    """Structure for progress evaluation output from LLM."""
+
+    done: bool = Field(
+        description="Whether there is enough information to synthesize a final answer"
+    )
+    need_refine_plan: bool = Field(
+        description="Whether the original plan needs adjustment"
+    )
+    reason: str = Field(description="Brief explanation of evaluation decision")
+
+
+# =============================================================================
 # NODE: plan_question
 # =============================================================================
 
@@ -190,13 +213,28 @@ def plan_question(state: QAState) -> QAState:
     logger.info("Creating execution plan for complex question...")
 
     llm = get_llm()
-    prompt = PLANNER_PROMPT.format(question=state["question"])
 
-    response = llm.invoke([HumanMessage(content=prompt)])
+    # Use structured output to force JSON response
+    llm_with_structure = llm.with_structured_output(PlanOutput)
 
-    # Parse JSON plan from response
-    parsed = safe_json_parse(response.content)
-    steps = parsed.get("steps", [])
+    # Build re-planning context
+    previous_plan = "\n".join(state.get("plan", [])) or "N/A (first planning)"
+    refine_reason = state.get("refine_reason") or "N/A (first planning)"
+    step_results = (
+        "\n\n".join(state.get("step_results", [])) or "N/A (no steps executed yet)"
+    )
+
+    prompt = PLANNER_PROMPT.format(
+        question=state["question"],
+        previous_plan=previous_plan,
+        refine_reason=refine_reason,
+        step_results=step_results,
+    )
+
+    # Invoke with structured output - returns PlanOutput instance
+    plan_output = llm_with_structure.invoke([HumanMessage(content=prompt)])
+
+    steps = plan_output.steps
 
     if not steps:
         # Fallback: create a simple 2-step plan
@@ -231,19 +269,24 @@ def validate_or_refine_plan(state: QAState) -> QAState:
         return {**state, "needs_plan_refine": False}
 
     llm = get_llm()
+
+    # Use structured output for validation
+    llm_with_structure = llm.with_structured_output(ValidatePlanOutput)
+
     plan_text = "\n".join(state.get("plan", []))
     prompt = VALIDATE_PLAN_PROMPT.format(question=state["question"], plan=plan_text)
 
-    response = llm.invoke([HumanMessage(content=prompt)])
-    parsed = safe_json_parse(response.content)
+    # Invoke with structured output - returns ValidatePlanOutput instance
+    validation = llm_with_structure.invoke([HumanMessage(content=prompt)])
 
-    if parsed.get("need_refine", False):
-        new_plan = parsed.get("new_plan", state.get("plan", []))
-        logger.info(f"Plan refined: {parsed.get('reason', 'No reason')}")
+    if validation.need_refine:
+        new_plan = validation.new_plan if validation.new_plan else state.get("plan", [])
+        logger.info(f"Plan refined: {validation.reason}")
         return {
             **state,
             "plan": new_plan,
             "needs_plan_refine": True,
+            "refine_reason": validation.reason,
             "iterations": state.get("iterations", 0) + 1,
         }
     else:
@@ -280,8 +323,8 @@ def execute_step(state: QAState) -> QAState:
     if collection_name:
         vector_store = get_vector_store(collection_name)
         retriever = vector_store.as_retriever(
-            search_type="similarity_score_threshold",
-            search_kwargs={"k": 10, "score_threshold": 0.6},
+            search_type="similarity",
+            search_kwargs={"k": 10},
         )
         docs = retriever.invoke(search_query)
     else:
@@ -344,6 +387,10 @@ def evaluate_progress(state: QAState) -> QAState:
         return {**state, "done": True, "needs_plan_refine": False}
 
     llm = get_llm()
+
+    # Use structured output for evaluation
+    llm_with_structure = llm.with_structured_output(EvaluateProgressOutput)
+
     plan_text = "\n".join(state.get("plan", []))
     step_results_text = "\n\n".join(state.get("step_results", [])) or "Chưa có"
 
@@ -354,22 +401,24 @@ def evaluate_progress(state: QAState) -> QAState:
         step_results=step_results_text,
     )
 
-    response = llm.invoke([HumanMessage(content=prompt)])
-    parsed = safe_json_parse(response.content)
-
-    done = parsed.get("done", False)
-    needs_refine = parsed.get("need_refine_plan", False)
+    # Invoke with structured output - returns EvaluateProgressOutput instance
+    evaluation = llm_with_structure.invoke([HumanMessage(content=prompt)])
 
     logger.info(
-        f"Evaluation: done={done}, need_refine={needs_refine}, reason={parsed.get('reason', '')}"
+        f"Evaluation: done={evaluation.done}, need_refine={evaluation.need_refine_plan}, reason={evaluation.reason}"
     )
 
-    return {
+    # Save refine_reason if plan needs refinement
+    result_state = {
         **state,
-        "done": done,
-        "needs_plan_refine": needs_refine,
-        "iterations": state.get("iterations", 0) + 1,
+        "done": evaluation.done,
+        "needs_plan_refine": evaluation.need_refine_plan,
     }
+
+    if evaluation.need_refine_plan:
+        result_state["refine_reason"] = evaluation.reason
+
+    return result_state
 
 
 # =============================================================================
