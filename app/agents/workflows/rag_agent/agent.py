@@ -232,12 +232,17 @@ async def run_rag_agent(
         if result.get("mode") == "simple":
             sources = result.get("sources", [])
 
-        # For complex path: extract metadata from working_context
+        # For complex path: extract from working_context
         else:
             context_docs = result.get("working_context", [])
             for doc in context_docs:
-                if hasattr(doc, "metadata"):
-                    sources.append(getattr(doc, "metadata", {}))
+                if hasattr(doc, "page_content"):
+                    sources.append(
+                        {
+                            "content": doc.page_content,
+                            "metadata": getattr(doc, "metadata", {}),
+                        }
+                    )
 
         logger.info(
             f"RAG Agent completed. Mode: {result.get('mode')}, "

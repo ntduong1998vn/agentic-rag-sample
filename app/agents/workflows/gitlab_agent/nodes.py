@@ -5,6 +5,7 @@ This module contains all the node functions that process state
 in the LangGraph workflow.
 """
 
+from langchain_aws.chat_models.bedrock_converse import ChatBedrockConverse
 import json
 import re
 from typing import List
@@ -30,15 +31,15 @@ from app.rag.vectorstores.s3_store import get_vector_store
 logger = get_logger(__name__)
 
 
-def get_llm(model_name: str = "gemini-2.5-flash-lite") -> ChatGoogleGenerativeAI:
+def get_llm(model_name: str = "gemini-2.5-flash-lite") -> ChatBedrockConverse:
     """Get a configured LLM instance."""
-    return wrap_gemini(
-        ChatGoogleGenerativeAI(
-            model=model_name,
-            google_api_key=settings.google_api_key,
-            temperature=0.7,
-            verbose=True,
-        )
+    return ChatBedrockConverse(
+        model="amazon.nova-micro-v1:0",
+        temperature=0,
+        max_tokens=None,
+        region_name="us-east-1",
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
     )
 
 

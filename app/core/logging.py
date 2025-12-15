@@ -30,7 +30,7 @@ def setup_logging(
     log_file_path = log_file_path or settings.log_file_path
     enable_console = enable_console if enable_console is not None else settings.log_console
 
-    numeric_level = getattr(logging, log_level.upper(), logging.DEBUG)
+    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
     
     # Create logs directory
     log_path = Path(log_file_path)

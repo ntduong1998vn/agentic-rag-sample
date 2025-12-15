@@ -17,20 +17,20 @@ from app.core.logging import get_logger
 from app.agents.tools.unified_search_tool import create_unified_search_tool
 from app.agents.tools.document_check_tool import create_document_check_tool
 from app.agents.tools.document_summarize_tool import create_document_summarize_tool
-from langsmith.wrappers import wrap_gemini
+from langchain_aws import ChatBedrockConverse
 
 logger = get_logger(__name__)
 
 
-def get_llm(model_name: str = "gemini-2.5-flash-lite") -> ChatGoogleGenerativeAI:
+def get_llm(model_name: str = "gemini-2.5-flash-lite") -> ChatBedrockConverse:
     """Get a configured LLM instance."""
-    return wrap_gemini(
-        ChatGoogleGenerativeAI(
-            model=model_name,
-            google_api_key=settings.google_api_key,
-            temperature=0.7,
-            verbose=True,
-        )
+    return ChatBedrockConverse(
+        model="amazon.nova-micro-v1:0",
+        temperature=0,
+        max_tokens=None,
+        region_name="us-east-1",
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
     )
 
 

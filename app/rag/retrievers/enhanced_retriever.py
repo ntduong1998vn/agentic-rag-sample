@@ -4,6 +4,7 @@ Uses langchain-classic's MultiQueryRetriever and ContextualCompressionRetriever
 to improve retrieval quality.
 """
 
+from langchain_aws.chat_models.bedrock_converse import ChatBedrockConverse
 from typing import List
 
 from langchain_core.documents import Document
@@ -22,12 +23,15 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 
-def get_llm_for_retriever() -> ChatGoogleGenerativeAI:
+def get_llm_for_retriever() -> ChatBedrockConverse:
     """Get a lightweight LLM for retriever operations."""
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-lite",
-        google_api_key=settings.google_api_key,
-        temperature=0.3,
+    return ChatBedrockConverse(
+        model="amazon.nova-micro-v1:0",
+        temperature=0,
+        max_tokens=None,
+        region_name="us-east-1",
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
     )
 
 
