@@ -1,9 +1,9 @@
 """
 V2 Conversation and chat API endpoints.
 
-Uses the new LangGraph RAG Agent with:
-- Simple questions: embedded ReAct agent with tools
-- Complex questions: multi-step planning workflow
+Uses the Router Agent (Supervisor) to route questions to:
+- GitLab Agent: for code-related questions
+- RAG Agent: for document-related questions
 """
 
 from uuid import UUID
@@ -19,13 +19,13 @@ from app.schemas.conversation import (
 )
 from app.services.conversation import ConversationService
 from app.models.knowledge_base import KnowledgeBase
-from app.agents.workflows.rag_agent import create_rag_agent, run_rag_agent
+from app.agents.router_agent import create_router_agent, run_router_agent
 from app.db.checkpointer import get_checkpointer
 
 router = APIRouter()
 
 # ============================================================================
-# V2 Chat Endpoint (New LangGraph RAG Agent)
+# V2 Chat Endpoint (Router Agent - Supervisor)
 # ============================================================================
 
 
@@ -36,14 +36,14 @@ async def chat(
     db: Session = Depends(get_db),
 ) -> ChatResponse:
     """
-    V2 Chat endpoint using the new LangGraph RAG Agent.
+    V2 Chat endpoint using the Router Agent (Supervisor).
 
-    This endpoint uses the refactored rag_agent with:
-    - Simple questions: embedded ReAct agent with tools (search, check, summarize)
-    - Complex questions: multi-step planning workflow with refinement
+    The Router Agent analyzes user questions and routes them to the
+    appropriate specialized agent:
+    - GitLab Agent: for code, repository, and technical documentation questions
+    - RAG Agent: for general documents and knowledge base questions
 
-    The agent automatically classifies questions and routes them to the
-    appropriate handler.
+    The selected agent handles the question and returns the response.
     """
     conversation_service = ConversationService(db)
     conversation = conversation_service.get_conversation(conversation_id)
@@ -70,15 +70,16 @@ async def chat(
         content=chat_request.message,
     )
 
-    # Create and run new LangGraph rag_agent with checkpointer
+    # Create and run Router Agent (Supervisor) with checkpointer
     async with get_checkpointer() as checkpointer:
-        agent = create_rag_agent(
+        agent = create_router_agent(
             chatbot_id=conversation.chatbot_id,
             collection_name=knowledge_base.collection_name,
             conversation_id=conversation_id,
+            gitlab_collection_name=None,  # Uses same collection as RAG for now
             checkpointer=checkpointer,
         )
-        response_text, sources = await run_rag_agent(
+        response_text, selected_agent, sources = await run_router_agent(
             agent=agent,
             question=chat_request.message,
             thread_id=conversation.thread_id,
