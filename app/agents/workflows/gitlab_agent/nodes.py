@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 def get_llm(model_name: str = "gemini-2.5-flash-lite") -> ChatBedrockConverse:
     """Get a configured LLM instance."""
     return ChatBedrockConverse(
-        model="amazon.nova-micro-v1:0",
+        model="amazon.nova-lite-v1:0",
         temperature=0,
         max_tokens=None,
         region_name="us-east-1",

@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 def get_llm_for_retriever() -> ChatBedrockConverse:
     """Get a lightweight LLM for retriever operations."""
     return ChatBedrockConverse(
-        model="amazon.nova-micro-v1:0",
+        model="amazon.nova-lite-v1:0",
         temperature=0,
         max_tokens=None,
         region_name="us-east-1",

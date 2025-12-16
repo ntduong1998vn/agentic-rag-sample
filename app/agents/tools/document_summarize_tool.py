@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 def get_summarize_llm() -> ChatBedrockConverse:
     """Get a configured LLM for summarization."""
     return ChatBedrockConverse(
-        model="amazon.nova-micro-v1:0",
+        model="amazon.nova-lite-v1:0",
         temperature=0,
         max_tokens=None,
         region_name="us-east-1",

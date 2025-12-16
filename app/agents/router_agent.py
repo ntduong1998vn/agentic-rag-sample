@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 # =============================================================================
 
 
-def get_llm(model_name: str = "amazon.nova-micro-v1:0") -> ChatBedrockConverse:
+def get_llm(model_name: str = "amazon.nova-lite-v1:0") -> ChatBedrockConverse:
     """Get a configured LLM instance."""
     return ChatBedrockConverse(
         model=model_name,
