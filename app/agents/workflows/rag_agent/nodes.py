@@ -9,9 +9,7 @@ from langchain_aws.chat_models.bedrock_converse import ChatBedrockConverse
 from typing import List
 
 from pydantic import BaseModel, Field
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
-from langsmith.wrappers import wrap_gemini
 from langchain_core.messages.ai import AIMessage
 
 from app.core.config import settings
@@ -414,6 +412,9 @@ def evaluate_progress(state: QAState) -> QAState:
         **state,
         "done": evaluation.done,
         "needs_plan_refine": evaluation.need_refine_plan,
+        "iterations": state.get("iterations", 0) + 1
+        if evaluation.need_refine_plan
+        else state.get("iterations", 0),
     }
 
     if evaluation.need_refine_plan:

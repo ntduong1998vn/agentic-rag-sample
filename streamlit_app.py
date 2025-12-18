@@ -5,12 +5,12 @@ A beautiful, modern chatbot interface with support for document upload and chat.
 
 import streamlit as st
 import requests
-import time
-from typing import Optional, Dict, Any
-import json
+from typing import Optional, Dict, Any, List
 
 # Configuration
 API_BASE_URL = "http://localhost:8000"
+API_V1_URL = f"{API_BASE_URL}/api/v1"
+API_V2_URL = f"{API_BASE_URL}/api/v2"
 
 # Page configuration
 st.set_page_config(
@@ -118,10 +118,17 @@ st.markdown("""
 # Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
-if "collection_name" not in st.session_state:
-    st.session_state.collection_name = "default"
 if "chatbot_id" not in st.session_state:
     st.session_state.chatbot_id = None
+if "conversation_id" not in st.session_state:
+    st.session_state.conversation_id = None
+if "user_id" not in st.session_state:
+    # Generate a random user_id for this session
+    import uuid
+
+    st.session_state.user_id = str(uuid.uuid4())
+if "api_version" not in st.session_state:
+    st.session_state.api_version = "v2"
 
 
 def check_api_health() -> bool:
@@ -133,67 +140,142 @@ def check_api_health() -> bool:
         return False
 
 
-def upload_file(file, collection_name: str) -> Dict[str, Any]:
-    """Upload a file to the API"""
+# ============================================================================
+# Chatbot API Functions
+# ============================================================================
+
+
+def get_chatbots() -> List[Dict[str, Any]]:
+    """Get list of available chatbots from /api/v1/chatbots/"""
+    try:
+        response = requests.get(f"{API_V1_URL}/chatbots/", timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"Error fetching chatbots: {e}")
+        return []
+
+
+def create_chatbot(
+    name: str, model_name: str = "gemini-2.0-flash"
+) -> Optional[Dict[str, Any]]:
+    """Create a new chatbot"""
+    try:
+        payload = {"name": name, "model_name": model_name, "llm_config": {}}
+        response = requests.post(f"{API_V1_URL}/chatbots/", json=payload, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"Error creating chatbot: {e}")
+        return None
+
+
+# ============================================================================
+# Conversation API Functions
+# ============================================================================
+
+
+def get_conversations(chatbot_id: str) -> List[Dict[str, Any]]:
+    """Get list of conversations for a chatbot"""
+    try:
+        response = requests.get(
+            f"{API_V1_URL}/chatbots/{chatbot_id}/conversations", timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"Error fetching conversations: {e}")
+        return []
+
+
+def create_conversation(
+    chatbot_id: str, user_id: str, title: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Create a new conversation for a chatbot"""
+    try:
+        payload = {"user_id": user_id, "title": title or "New Conversation"}
+        response = requests.post(
+            f"{API_V1_URL}/chatbots/{chatbot_id}/conversations",
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"Error creating conversation: {e}")
+        return None
+
+
+def get_conversation_messages(conversation_id: str) -> List[Dict[str, Any]]:
+    """Get message history for a conversation"""
+    try:
+        response = requests.get(
+            f"{API_V1_URL}/chatbots/conversations/{conversation_id}/messages", timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"Error fetching messages: {e}")
+        return []
+
+
+# ============================================================================
+# Chat API Functions
+# ============================================================================
+
+
+def send_message(
+    conversation_id: str, message: str, api_version: str = "v2"
+) -> Dict[str, Any]:
+    """Send a chat message to the appropriate API version"""
+    try:
+        payload = {"message": message}
+
+        # Choose API version
+        if api_version == "v2":
+            url = f"{API_V2_URL}/chatbots/conversations/{conversation_id}/chat"
+        else:
+            url = f"{API_V1_URL}/chatbots/conversations/{conversation_id}/chat"
+
+        response = requests.post(
+            url,
+            json=payload,
+            timeout=120,  # Longer timeout for agent processing
+        )
+        response.raise_for_status()
+        return {"success": True, "data": response.json()}
+    except requests.exceptions.HTTPError as e:
+        error_detail = ""
+        try:
+            error_detail = e.response.json().get("detail", str(e))
+        except:
+            error_detail = str(e)
+        return {"success": False, "error": error_detail}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================================
+# Document Upload API Functions
+# ============================================================================
+
+
+def upload_file_to_chatbot(chatbot_id: str, file) -> Dict[str, Any]:
+    """Upload a file to a chatbot's knowledge base"""
     try:
         files = {"file": (file.name, file, file.type)}
-        data = {"collection_name": collection_name}
         response = requests.post(
-            f"{API_BASE_URL}/files/upload",
-            files=files,
-            data=data,
-            timeout=300
+            f"{API_V1_URL}/chatbots/{chatbot_id}/ingest", files=files, timeout=300
         )
         response.raise_for_status()
         return {"success": True, "data": response.json()}
     except Exception as e:
         return {"success": False, "error": str(e)}
-
-
-def send_message(message: str, collection_name: str, chatbot_id: Optional[int] = None) -> Dict[str, Any]:
-    """Send a chat message to the API"""
-    try:
-        payload = {
-            "message": message,
-            "collection_name": collection_name
-        }
-        if chatbot_id:
-            payload["chatbot_id"] = chatbot_id
-            
-        response = requests.post(
-            f"{API_BASE_URL}/chat",
-            json=payload,
-            timeout=60
-        )
-        response.raise_for_status()
-        return {"success": True, "data": response.json()}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-def get_chatbots() -> list:
-    """Get list of available chatbots"""
-    try:
-        response = requests.get(f"{API_BASE_URL}/chatbots", timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except:
-        return []
-
-
-def get_collections() -> list:
-    """Get list of available collections"""
-    try:
-        response = requests.get(f"{API_BASE_URL}/files/collections", timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except:
-        return []
 
 
 # Main Header
 st.markdown("<h1>🤖 Agentic RAG Chatbot</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: white; font-size: 1.2rem;'>Powered by Google Gemini & Qdrant Vector Database</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: white; font-size: 1.2rem;'>Powered by AWS Bedrock & OpenSearch Vector Database</p>", unsafe_allow_html=True)
 
 # Check API health
 api_status = check_api_health()
@@ -211,66 +293,153 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Collection selection
-    st.markdown("#### 📚 Document Collection")
-    collections = get_collections() if api_status else []
+    # API Version Selection
+    st.markdown("#### � API Version")
+    api_version = st.radio(
+        "Select API Version",
+        options=["v2", "v1"],
+        index=0 if st.session_state.api_version == "v2" else 1,
+        help="v2: Router Agent (Supervisor), v1: RAG Agent only",
+        horizontal=True
+    )
+    st.session_state.api_version = api_version
     
-    if collections:
-        collection_options = ["default"] + [c.get("name", c) for c in collections if isinstance(c, dict)]
-        st.session_state.collection_name = st.selectbox(
-            "Select Collection",
-            options=collection_options,
-            index=0
-        )
+    if api_version == "v2":
+        st.caption("🚀 V2: Uses Router Agent to dispatch between RAG and GitLab agents")
     else:
-        st.session_state.collection_name = st.text_input(
-            "Collection Name",
-            value=st.session_state.collection_name,
-            help="Enter the name of the document collection to use"
-        )
+        st.caption("📚 V1: Uses RAG Agent for document-based questions")
     
     st.markdown("---")
     
     # Chatbot selection
-    st.markdown("#### 🎭 Chatbot Personality")
+    st.markdown("#### 🤖 Select Chatbot")
     chatbots = get_chatbots() if api_status else []
     
     if chatbots:
-        chatbot_options = {"Default (No specific personality)": None}
+        chatbot_options = {}
         for bot in chatbots:
             if isinstance(bot, dict) and "id" in bot and "name" in bot:
-                chatbot_options[f"{bot['name']} - {bot.get('description', 'No description')}"] = bot["id"]
+                label = f"{bot['name']} ({bot.get('model_name', 'unknown')})"
+                chatbot_options[label] = bot["id"]
         
-        selected_chatbot = st.selectbox(
-            "Select Chatbot",
-            options=list(chatbot_options.keys())
-        )
-        st.session_state.chatbot_id = chatbot_options[selected_chatbot]
+        if chatbot_options:
+            selected_chatbot_label = st.selectbox(
+                "Available Chatbots",
+                options=list(chatbot_options.keys()),
+                help="Select a chatbot to start a conversation"
+            )
+            selected_chatbot_id = chatbot_options[selected_chatbot_label]
+            
+            # Update session state if chatbot changed
+            if st.session_state.chatbot_id != selected_chatbot_id:
+                st.session_state.chatbot_id = selected_chatbot_id
+                st.session_state.conversation_id = None
+                st.session_state.messages = []
+        else:
+            st.warning("No valid chatbots found")
     else:
-        st.info("No chatbots available. Using default personality.")
-        st.session_state.chatbot_id = None
+        st.info("No chatbots available")
+        
+        # Create new chatbot form
+        with st.expander("➕ Create New Chatbot"):
+            new_chatbot_name = st.text_input("Chatbot Name", placeholder="My Chatbot")
+            new_chatbot_model = st.selectbox(
+                "Model",
+                options=["gemini-2.0-flash", "gemini-1.5-pro", "gpt-4", "claude-3-sonnet"]
+            )
+            if st.button("Create Chatbot", use_container_width=True):
+                if new_chatbot_name:
+                    result = create_chatbot(new_chatbot_name, new_chatbot_model)
+                    if result:
+                        st.success(f"✅ Created chatbot: {new_chatbot_name}")
+                        st.rerun()
+                else:
+                    st.error("Please enter a chatbot name")
     
     st.markdown("---")
     
-    # File upload
-    st.markdown("#### 📄 Upload Documents")
-    uploaded_file = st.file_uploader(
-        "Choose a file",
-        type=["pdf", "docx", "txt", "md", "xlsx", "csv", "png", "jpg", "jpeg"],
-        help="Upload documents to add to your knowledge base"
-    )
-    
-    if uploaded_file and st.button("📤 Upload", use_container_width=True):
-        if not api_status:
-            st.error("API is not connected!")
+    # Conversation selection (only if chatbot is selected)
+    if st.session_state.chatbot_id:
+        st.markdown("#### 💬 Conversations")
+        conversations = get_conversations(st.session_state.chatbot_id) if api_status else []
+        
+        # Create new conversation button
+        if st.button("➕ New Conversation", use_container_width=True):
+            new_conv = create_conversation(
+                chatbot_id=st.session_state.chatbot_id,
+                user_id=st.session_state.user_id,
+                title=f"Chat {len(conversations) + 1}"
+            )
+            if new_conv:
+                st.session_state.conversation_id = new_conv["id"]
+                st.session_state.messages = []
+                st.success("✅ Created new conversation")
+                st.rerun()
+        
+        if conversations:
+            conv_options = {}
+            for conv in conversations:
+                if isinstance(conv, dict) and "id" in conv:
+                    label = conv.get("title", f"Conversation {conv['id'][:8]}...")
+                    conv_options[label] = conv["id"]
+            
+            if conv_options:
+                # Find current selection index
+                current_labels = list(conv_options.keys())
+                current_index = 0
+                if st.session_state.conversation_id:
+                    for i, (label, cid) in enumerate(conv_options.items()):
+                        if cid == st.session_state.conversation_id:
+                            current_index = i
+                            break
+                
+                selected_conv_label = st.selectbox(
+                    "Select Conversation",
+                    options=current_labels,
+                    index=current_index
+                )
+                selected_conv_id = conv_options[selected_conv_label]
+                
+                # Update session state if conversation changed
+                if st.session_state.conversation_id != selected_conv_id:
+                    st.session_state.conversation_id = selected_conv_id
+                    st.session_state.messages = []
+                    # Load messages from history
+                    messages = get_conversation_messages(selected_conv_id)
+                    for msg in messages:
+                        role = "user" if msg.get("role") == "human" else "assistant"
+                        content = msg.get("message", {}).get("content", "")
+                        if content:
+                            st.session_state.messages.append({
+                                "role": role,
+                                "content": content
+                            })
         else:
-            with st.spinner("Uploading and processing..."):
-                result = upload_file(uploaded_file, st.session_state.collection_name)
-                if result["success"]:
-                    st.success(f"✅ File uploaded successfully!")
-                    st.json(result["data"])
-                else:
-                    st.error(f"❌ Upload failed: {result['error']}")
+            st.info("No conversations yet. Create one to start chatting!")
+    
+    st.markdown("---")
+    
+    # File upload (only if chatbot is selected)
+    if st.session_state.chatbot_id:
+        st.markdown("#### 📄 Upload Documents")
+        uploaded_file = st.file_uploader(
+            "Choose a file",
+            type=["pdf", "docx", "txt", "md", "xlsx", "xls", "csv", "png", "jpg", "jpeg"],
+            help="Upload documents to add to chatbot's knowledge base"
+        )
+        
+        if uploaded_file and st.button("📤 Upload to Chatbot", use_container_width=True):
+            if not api_status:
+                st.error("API is not connected!")
+            else:
+                with st.spinner("Uploading and processing..."):
+                    result = upload_file_to_chatbot(st.session_state.chatbot_id, uploaded_file)
+                    if result["success"]:
+                        st.success("✅ File uploaded successfully!")
+                        if "data" in result:
+                            st.json(result["data"])
+                    else:
+                        st.error(f"❌ Upload failed: {result['error']}")
     
     st.markdown("---")
     
@@ -283,15 +452,26 @@ with st.sidebar:
     st.markdown("#### ℹ️ About")
     st.markdown("""
     This chatbot uses:
-    - **Google Gemini** for AI responses
-    - **Qdrant** for vector search
+    - **AWS Bedrock** for AI responses
+    - **OpenSearch** for vector search
     - **RAG** for accurate answers
+    - **Router Agent** for intelligent routing
     
-    Upload documents and ask questions!
+    Select a chatbot and start chatting!
     """)
 
 # Main chat area
 st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
+
+# Show current session info
+if st.session_state.chatbot_id and st.session_state.conversation_id:
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.caption(f"🤖 Chatbot: {st.session_state.chatbot_id[:8]}...")
+    with col2:
+        st.caption(f"💬 Conversation: {st.session_state.conversation_id[:8]}...")
+    with col3:
+        st.caption(f"🔄 API: {st.session_state.api_version.upper()}")
 
 # Display chat messages
 for message in st.session_state.messages:
@@ -309,18 +489,36 @@ for message in st.session_state.messages:
                 for i, source in enumerate(message["sources"], 1):
                     st.markdown(f"**Source {i}:**")
                     if isinstance(source, dict):
-                        st.json(source)
+                        # Show metadata
+                        metadata = source.get("metadata", source)
+                        st.json(metadata)
                     else:
                         st.text(source)
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# Chat input (always at the bottom)
-user_input = st.chat_input("💬 Type your message here..." if api_status else "⚠️ API not connected")
+# Chat input - check for required session state
+can_chat = api_status and st.session_state.chatbot_id and st.session_state.conversation_id
+
+if not st.session_state.chatbot_id:
+    placeholder_text = "⚠️ Please select a chatbot first"
+elif not st.session_state.conversation_id:
+    placeholder_text = "⚠️ Please create or select a conversation first"
+elif not api_status:
+    placeholder_text = "⚠️ API not connected"
+else:
+    placeholder_text = "💬 Type your message here..."
+
+user_input = st.chat_input(placeholder_text)
 
 if user_input:
-    if not api_status:
-        st.error("Cannot send message: API is not connected!")
+    if not can_chat:
+        if not st.session_state.chatbot_id:
+            st.error("Please select a chatbot first!")
+        elif not st.session_state.conversation_id:
+            st.error("Please create or select a conversation first!")
+        else:
+            st.error("Cannot send message: API is not connected!")
     else:
         # Add user message to chat
         st.session_state.messages.append({
@@ -331,9 +529,9 @@ if user_input:
         # Send to API and get response
         with st.spinner("🤔 Thinking..."):
             result = send_message(
-                user_input,
-                st.session_state.collection_name,
-                st.session_state.chatbot_id
+                conversation_id=st.session_state.conversation_id,
+                message=user_input,
+                api_version=st.session_state.api_version
             )
             
             if result["success"]:
@@ -361,7 +559,8 @@ if user_input:
 st.markdown("---")
 st.markdown("""
 <p style='text-align: center; color: white; opacity: 0.8;'>
-    Made with ❤️ using Streamlit, FastAPI & LangChain | 
+    Made with ❤️ using Streamlit, FastAPI & LangGraph | 
     <a href='http://localhost:8000/docs' target='_blank' style='color: white;'>API Docs</a>
 </p>
 """, unsafe_allow_html=True)
+
