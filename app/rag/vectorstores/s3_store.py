@@ -199,7 +199,7 @@ def get_adjacent_chunks(
     index_name: str,
     document_id: str,
     center_chunk_index: int,
-    adjacent_count: int = 5,
+    adjacent_count: int = 3,
 ) -> List[LangchainDocument]:
     """
     Get adjacent chunks around a center chunk for Parent Document Retriever pattern.

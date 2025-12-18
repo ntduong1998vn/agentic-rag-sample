@@ -17,6 +17,7 @@ from app.core.logging import get_logger
 from app.agents.workflows.rag_agent.state import QAState
 from app.agents.workflows.rag_agent.prompts import (
     CLASSIFY_PROMPT,
+    GENERATE_SEARCH_QUERIES_PROMPT,
     PLANNER_PROMPT,
     VALIDATE_PLAN_PROMPT,
     STEP_REASONING_PROMPT,
@@ -202,6 +203,87 @@ class EvaluateProgressOutput(BaseModel):
     reason: str = Field(description="Brief explanation of evaluation decision")
 
 
+class GeneratedQueries(BaseModel):
+    """Structure for generated search queries from LLM."""
+
+    queries: List[str] = Field(
+        description="List of 3 related search queries to gather information",
+        min_length=3,
+        max_length=3,
+    )
+
+
+# =============================================================================
+# NODE: pre_search_node
+# =============================================================================
+
+
+async def pre_search_node(state: QAState) -> QAState:
+    """
+    Pre-search node that generates related queries and searches in parallel.
+
+    This node runs before plan_question to gather initial context:
+    1. Uses LLM to generate 3 related search queries
+    2. Searches vector store with all 3 queries in parallel using asyncio
+    3. Merges and deduplicates results for planning context
+    """
+    import asyncio
+
+    logger.info("Executing pre-search node to gather initial context...")
+
+    collection_name = state.get("collection_name", "")
+    if not collection_name:
+        logger.warning("No collection_name provided, skipping pre-search")
+        return {
+            **state,
+            "pre_search_questions": [],
+            "pre_search_context": [],
+        }
+
+    # 1. Generate 3 related search queries using LLM
+    llm = get_llm()
+    llm_with_structure = llm.with_structured_output(GeneratedQueries)
+
+    prompt = GENERATE_SEARCH_QUERIES_PROMPT.format(question=state["question"])
+    generated = llm_with_structure.invoke([HumanMessage(content=prompt)])
+
+    queries = generated.queries
+    logger.info(f"Generated {len(queries)} search queries: {queries}")
+
+    # 2. Define async search function
+    async def search_query(query: str):
+        """Search vector store with a single query."""
+        vector_store = get_vector_store(collection_name)
+        retriever = vector_store.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": 5},
+        )
+        # Use retriever's native async method
+        docs = await retriever.ainvoke(query)
+        return docs
+
+    # 3. Run all searches in parallel
+    results = await asyncio.gather(*[search_query(q) for q in queries])
+
+    # 4. Merge and deduplicate results
+    seen_contents = set()
+    merged_docs = []
+    for docs in results:
+        for doc in docs:
+            content_hash = hash(doc.page_content)
+            if content_hash not in seen_contents:
+                seen_contents.add(content_hash)
+                merged_docs.append(doc)
+
+    logger.info(f"Pre-search gathered {len(merged_docs)} unique documents")
+
+    return {
+        **state,
+        "pre_search_questions": queries,
+        "pre_search_context": merged_docs,
+    }
+
+
 # =============================================================================
 # NODE: plan_question
 # =============================================================================
@@ -223,8 +305,22 @@ def plan_question(state: QAState) -> QAState:
         "\n\n".join(state.get("step_results", [])) or "N/A (no steps executed yet)"
     )
 
+    # Build pre-search context from pre_search_context docs
+    pre_search_docs = state.get("pre_search_context", [])
+    if pre_search_docs:
+        pre_search_parts = []
+        for i, doc in enumerate(pre_search_docs[:10], 1):  # Limit to top 10
+            source = doc.metadata.get("source", "Unknown")
+            pre_search_parts.append(
+                f"[Document {i}] (Source: {source})\n{doc.page_content}"
+            )
+        pre_search_context = "\n\n---\n\n".join(pre_search_parts)
+    else:
+        pre_search_context = "N/A (no pre-search results)"
+
     prompt = PLANNER_PROMPT.format(
         question=state["question"],
+        pre_search_context=pre_search_context,
         previous_plan=previous_plan,
         refine_reason=refine_reason,
         step_results=step_results,

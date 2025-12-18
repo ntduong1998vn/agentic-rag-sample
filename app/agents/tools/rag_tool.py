@@ -67,7 +67,6 @@ def create_knowledge_base_tool(collection_name: str):
                         index_name=collection_name,
                         document_id=document_id,
                         center_chunk_index=chunk_index,
-                        adjacent_count=5,  # 5 chunks on each side = ~10 adjacent chunks
                     )
 
                     for adj_chunk in adjacent_chunks:

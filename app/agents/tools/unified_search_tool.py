@@ -17,8 +17,7 @@ def _retrieve_and_expand_chunks(
     query: str,
     document_id_filter: Optional[str] = None,
     k: int = 6,
-    score_threshold: float = 0.7,
-    adjacent_count: int = 5,
+    adjacent_count: int = 3,
 ) -> List[Document]:
     """
     Core retrieval logic with Parent Document Retriever expansion.
@@ -34,7 +33,6 @@ def _retrieve_and_expand_chunks(
         query: The search query.
         document_id_filter: Optional document_id to filter results.
         k: Number of top results to retrieve.
-        score_threshold: Minimum similarity score threshold.
         adjacent_count: Number of adjacent chunks to retrieve on each side.
 
     Returns:
@@ -63,7 +61,7 @@ def _retrieve_and_expand_chunks(
         return []
 
     logger.info(
-        f"Retrieved {len(docs)} documents with score > {score_threshold} for query='{query}'"
+        f"Retrieved {len(docs)} documents for query='{query}'"
         + (
             f" (filtered by document_id={document_id_filter})"
             if document_id_filter
@@ -183,8 +181,7 @@ def create_unified_search_tool(
                 query=query,
                 document_id_filter=document_id_filter,
                 k=6,
-                score_threshold=0.7,
-                adjacent_count=5,
+                adjacent_count=3,
             )
             
             # Handle no results

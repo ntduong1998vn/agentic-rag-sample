@@ -17,6 +17,7 @@ from app.agents.workflows.rag_agent.state import QAState
 from app.agents.workflows.rag_agent.nodes import (
     classify_question,
     create_simple_qa_agent,
+    pre_search_node,
     plan_question,
     validate_or_refine_plan,
     execute_step,
@@ -110,6 +111,7 @@ def create_rag_agent(
     # Add nodes
     graph.add_node("classify_question", classify_question)
     graph.add_node("simple_qa_node", simple_qa_node)  # Factory-created node
+    graph.add_node("pre_search_node", pre_search_node)  # Pre-search for complex path
     graph.add_node("plan_question", plan_question)
     graph.add_node("validate_or_refine_plan", validate_or_refine_plan)
     graph.add_node("execute_step", execute_step)
@@ -119,20 +121,21 @@ def create_rag_agent(
     # Set entry point
     graph.set_entry_point("classify_question")
 
-    # Route: classify → simple_qa_node OR plan_question
+    # Route: classify → simple_qa_node OR pre_search_node (for complex)
     graph.add_conditional_edges(
         "classify_question",
         route_by_mode,
         {
             "simple": "simple_qa_node",
-            "complex": "plan_question",
+            "complex": "pre_search_node",
         },
     )
 
     # Simple path: simple_qa_node → END
     graph.add_edge("simple_qa_node", END)
 
-    # Complex path: plan → validate
+    # Complex path: pre_search → plan → validate
+    graph.add_edge("pre_search_node", "plan_question")
     graph.add_edge("plan_question", "validate_or_refine_plan")
 
     # Route: validate → refine (back to plan) OR ok (proceed to execute)

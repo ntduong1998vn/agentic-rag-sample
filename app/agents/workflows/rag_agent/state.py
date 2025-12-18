@@ -28,6 +28,10 @@ class QAState(TypedDict, total=False):
     messages: Annotated[list, add_messages]  # Tool call/response messages for ToolNode
     simple_answer: Optional[str]
 
+    # Pre-search for complex path
+    pre_search_questions: list[str]  # 3 generated related questions
+    pre_search_context: list[Any]  # Documents retrieved from pre-search
+
     # Complex path (planning)
     plan: list[str]  # ["Step 1: ...", "Step 2: ..."]
     current_step_index: int

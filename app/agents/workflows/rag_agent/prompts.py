@@ -30,6 +30,28 @@ Return EXACTLY 1 word: simple or complex
 """
 
 # =============================================================================
+# GENERATE SEARCH QUERIES PROMPT
+# =============================================================================
+
+GENERATE_SEARCH_QUERIES_PROMPT = """You are a search query generator. Given a user's complex question, generate 3 different but related search queries that will help gather comprehensive information to answer the question.
+
+## User's Question
+{question}
+
+## Instructions
+Generate exactly 3 search queries that:
+1. Cover different aspects or perspectives of the question
+2. Use different keywords to maximize retrieval coverage
+3. Are specific enough to retrieve relevant documents
+4. Are in the same language as the question
+
+Focus on:
+- Breaking down the question into sub-components
+- Using synonyms and related terms
+- Covering both broad and specific aspects
+"""
+
+# =============================================================================
 # SIMPLE ANSWER PROMPT
 # =============================================================================
 
@@ -59,6 +81,10 @@ PLANNER_PROMPT = """You are a Business Analyst + System Architect. Create a mult
 ## Question
 {question}
 
+## Pre-Search Context (Initial Information Gathered)
+The following information was gathered from an initial search to help inform your planning:
+{pre_search_context}
+
 ## Re-planning Context (if applicable)
 ### Previous Plan
 {previous_plan}
@@ -77,6 +103,7 @@ Create 3-8 steps, each step should be an atomic task:
 - Analyze impact (screens, APIs, DB)
 
 If this is a re-planning request, consider the previous plan's shortcomings and the data already gathered to create a more effective plan.
+Use the pre-search context to inform your planning - identify what information is available and what additional searches may be needed.
 
 ## Examples of good steps:
 - "Step 1: Find documents describing business process X"
