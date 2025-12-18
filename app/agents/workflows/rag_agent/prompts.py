@@ -92,24 +92,60 @@ The following information was gathered from an initial search to help inform you
 ### Reason for Re-planning
 {refine_reason}
 
-### Results from Executed Steps
+### Results from Already Executed Steps (DO NOT INCLUDE THESE IN OUTPUT)
 {step_results}
 
 ## Instructions
-Create 3-8 steps, each step should be an atomic task:
+
+### CRITICAL: Re-planning Rules
+If `step_results` contains any data, this is a RE-PLANNING request. You MUST follow these rules:
+
+1. **DO NOT RETURN COMPLETED STEPS**: Steps shown in `step_results` have ALREADY been executed.
+   - These steps will NOT be included in your output
+   - Their results are already saved and will be used in the final synthesis
+   - Returning them would cause them to be executed AGAIN, wasting time and resources
+
+2. **ONLY RETURN REMAINING STEPS**: Your output should contain ONLY:
+   - New steps needed to fill gaps identified in `refine_reason`
+   - Improved/refined steps to replace ineffective approaches
+   - Steps that haven't been executed yet
+
+3. **START STEP NUMBERING FROM 1**: Since you're only returning remaining steps, start numbering from Step 1.
+
+4. **USE EXISTING RESULTS**: Reference information from `step_results` when planning new steps. Build upon what's already discovered.
+
+### For Initial Planning (when step_results is empty)
+Create 3-6 steps, each step should be an atomic task:
 - Inventory relevant documents (files, modules, screens)
 - Analyze business flow
 - If diagram needed, describe in text format (Mermaid)
 - Analyze impact (screens, APIs, DB)
 
-If this is a re-planning request, consider the previous plan's shortcomings and the data already gathered to create a more effective plan.
 Use the pre-search context to inform your planning - identify what information is available and what additional searches may be needed.
 
-## Examples of good steps:
-- "Step 1: Find documents describing business process X"
-- "Step 2: Analyze main workflow and identify decision points"
-- "Step 3: Identify actors, input data, and output data"
-- "Step 4: Map dependencies between components"
+## Examples
+
+### Example of CORRECT Re-planning:
+If step_results contains:
+- Step 1: "Find login flow documents" → Result: "Found 3 documents about OAuth2..."
+- Step 2: "Analyze authentication methods" → Result: "System uses OAuth2 with JWT tokens..."
+
+And refine_reason says: "Missing database impact analysis"
+
+CORRECT output (only remaining steps):
+- Step 1: Identify database tables affected by login flow
+- Step 2: Analyze API endpoints impacted by authentication changes
+
+### Example of WRONG Re-planning (DO NOT DO THIS):
+- Step 1: Find login flow documents ❌ (WRONG - already executed, will cause duplicate execution)
+- Step 2: Analyze authentication methods ❌ (WRONG - already executed)
+- Step 3: Database analysis
+
+## Examples of good step descriptions:
+- "Find documents describing business process X"
+- "Analyze main workflow and identify decision points"
+- "Identify actors, input data, and output data"
+- "Map dependencies between components"
 """
 
 # =============================================================================
