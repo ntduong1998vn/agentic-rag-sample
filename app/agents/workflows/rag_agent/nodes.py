@@ -76,7 +76,7 @@ def classify_question(state: QAState) -> QAState:
             "needs_plan_refine": False,
             "done": False,
             "iterations": 0,
-            "max_iterations": 3,
+            "max_iterations": 2,
         }
     else:
         mode = "simple"
@@ -301,22 +301,40 @@ def plan_question(state: QAState) -> QAState:
     # Build re-planning context
     previous_plan = "\n".join(state.get("plan", [])) or "N/A (first planning)"
     refine_reason = state.get("refine_reason") or "N/A (first planning)"
+    step_results_list = state.get("step_results", [])
     step_results = (
-        "\n\n".join(state.get("step_results", [])) or "N/A (no steps executed yet)"
+        "\n\n".join(step_results_list)
+        if step_results_list
+        else "N/A (no steps executed yet)"
     )
 
-    # Build pre-search context from pre_search_context docs
-    pre_search_docs = state.get("pre_search_context", [])
-    if pre_search_docs:
-        pre_search_parts = []
-        for i, doc in enumerate(pre_search_docs[:10], 1):  # Limit to top 10
-            source = doc.metadata.get("source", "Unknown")
-            pre_search_parts.append(
-                f"[Document {i}] (Source: {source})\n{doc.page_content}"
-            )
-        pre_search_context = "\n\n---\n\n".join(pre_search_parts)
+    # Determine if this is re-planning (step_results exists and is not empty)
+    is_replanning = bool(step_results_list)
+
+    # Build pre-search context ONLY for initial planning
+    # When re-planning, skip pre_search_context to avoid long prompts with redundant info
+    if is_replanning:
+        # Re-planning: use step_results instead, don't include pre_search_context
+        pre_search_context = ""
+        logger.info(
+            "Re-planning mode: skipping pre_search_context to reduce prompt length"
+        )
     else:
-        pre_search_context = "N/A (no pre-search results)"
+        # Initial planning: include pre_search_context
+        pre_search_docs = state.get("pre_search_context", [])
+        if pre_search_docs:
+            pre_search_parts = []
+            for i, doc in enumerate(pre_search_docs[:10], 1):  # Limit to top 10
+                source = doc.metadata.get("source", "Unknown")
+                pre_search_parts.append(
+                    f"[Document {i}] (Source: {source})\n{doc.page_content}"
+                )
+            pre_search_context = "\n\n---\n\n".join(pre_search_parts)
+            logger.info(
+                f"Initial planning: including {len(pre_search_docs)} pre-search documents"
+            )
+        else:
+            pre_search_context = "N/A (no pre-search results)"
 
     prompt = PLANNER_PROMPT.format(
         question=state["question"],
@@ -359,7 +377,7 @@ def validate_or_refine_plan(state: QAState) -> QAState:
     logger.info("Validating plan...")
 
     # Skip validation if max iterations reached
-    if state.get("iterations", 0) >= state.get("max_iterations", 3):
+    if state.get("iterations", 0) >= state.get("max_iterations", 2):
         logger.info("Max iterations reached, skipping validation")
         return {**state, "needs_plan_refine": False}
 
@@ -477,7 +495,7 @@ def evaluate_progress(state: QAState) -> QAState:
     )
 
     # Check if max iterations reached
-    if state.get("iterations", 0) >= state.get("max_iterations", 3):
+    if state.get("iterations", 0) >= state.get("max_iterations", 2):
         logger.info("Max iterations reached, marking done")
         return {**state, "done": True, "needs_plan_refine": False}
 
