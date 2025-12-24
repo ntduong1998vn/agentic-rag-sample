@@ -67,6 +67,12 @@ def setup_logging(
         console_handler.setFormatter(console_formatter)
         root_logger.addHandler(console_handler)
 
+    # Suppress verbose DEBUG logs from third-party libraries
+    logging.getLogger("botocore").setLevel(logging.INFO)
+    logging.getLogger("boto3").setLevel(logging.INFO)
+    logging.getLogger("urllib3").setLevel(logging.INFO)
+    logging.getLogger("s3transfer").setLevel(logging.INFO)
+
     # logging.getLogger(__name__).info(f"Logging initialized - Level: {log_level}")
 
 
