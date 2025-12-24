@@ -8,7 +8,6 @@ from app.agents.prompts import RAG_SYSTEM_PROMPT
 from typing import List, Optional
 from uuid import UUID
 
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
 from langchain.agents import create_agent
 

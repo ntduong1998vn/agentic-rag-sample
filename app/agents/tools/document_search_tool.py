@@ -133,8 +133,9 @@ def create_document_search_tool(
                     f"Kết quả tìm kiếm trong tài liệu '{found_document_name}':\n"
                 ]
                 for i, doc in enumerate(all_chunks, 1):
-                    chunk_idx = doc.metadata.get("chunk_index", "?")
-                    results.append(f"[Đoạn {i}, Chunk {chunk_idx}]\n{doc.page_content}")
+                    results.append(
+                        f"[Metadata: {doc.metadata}, Content:\n{doc.page_content}"
+                    )
 
                 return "\n\n---\n\n".join(results)
 

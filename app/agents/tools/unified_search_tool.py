@@ -197,16 +197,15 @@ def create_unified_search_tool(
             if document_name:
                 # Document-specific search: Vietnamese format
                 results.append(f"Kết quả tìm kiếm trong tài liệu '{found_document_name}':\n")
-                for i, doc in enumerate(all_chunks, 1):
-                    chunk_idx = doc.metadata.get("chunk_index", "?")
-                    results.append(f"[Đoạn {i}, Chunk {chunk_idx}]\n{doc.page_content}")
+                for doc in all_chunks:
+                    results.append(
+                        f"Metadata: {doc.metadata}\nContent:{doc.page_content}"
+                    )
             else:
                 # General search: English format
-                for i, doc in enumerate(all_chunks, 1):
-                    source = doc.metadata.get("source", "Unknown")
-                    chunk_idx = doc.metadata.get("chunk_index", "?")
+                for doc in all_chunks:
                     results.append(
-                        f"[Document {i}] (Source: {source}, Chunk: {chunk_idx})\n{doc.page_content}"
+                        f"Metadata: {doc.metadata}\nContent:{doc.page_content}"
                     )
             
             return "\n\n---\n\n".join(results)
