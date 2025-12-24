@@ -6,6 +6,7 @@ A beautiful, modern chatbot interface with support for document upload and chat.
 import streamlit as st
 import requests
 from typing import Optional, Dict, Any, List
+import json
 
 # Configuration
 API_BASE_URL = "http://localhost:8000"
@@ -253,6 +254,50 @@ def send_message(
         return {"success": False, "error": error_detail}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+def stream_message(conversation_id: str, message: str):
+    """
+    Stream chat response using Server-Sent Events (SSE).
+
+    Yields tokens as they arrive from the streaming endpoint.
+    """
+    url = f"{API_V2_URL}/chatbots/conversations/{conversation_id}/chat/stream"
+
+    try:
+        with requests.post(
+            url,
+            json={"message": message},
+            stream=True,
+            timeout=300,  # Longer timeout for streaming
+        ) as response:
+            response.raise_for_status()
+
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode("utf-8")
+                    if line.startswith("data: "):
+                        try:
+                            data = json.loads(line[6:])  # Skip "data: " prefix
+                            event_type = data.get("type", "")
+                            content = data.get("content", "")
+
+                            if event_type == "token":
+                                yield content
+                            elif event_type == "tool_start":
+                                yield f"\n\n_{content}_\n\n"
+                            elif event_type == "tool_end":
+                                # Don't display tool_end messages
+                                pass
+                            elif event_type == "done":
+                                break
+                            elif event_type == "error":
+                                yield f"\n\n❌ Error: {content}"
+                                break
+                        except json.JSONDecodeError:
+                            continue
+    except Exception as e:
+        yield f"\n\n❌ Connection error: {str(e)}"
 
 
 # ============================================================================
@@ -525,35 +570,49 @@ if user_input:
             "role": "user",
             "content": user_input
         })
-        
-        # Send to API and get response
-        with st.spinner("🤔 Thinking..."):
-            result = send_message(
-                conversation_id=st.session_state.conversation_id,
-                message=user_input,
-                api_version=st.session_state.api_version
-            )
-            
-            if result["success"]:
-                response_data = result["data"]
-                assistant_message = {
-                    "role": "assistant",
-                    "content": response_data.get("response", "No response received"),
-                }
-                
-                # Add sources if available
-                if "sources" in response_data:
-                    assistant_message["sources"] = response_data["sources"]
-                
-                st.session_state.messages.append(assistant_message)
-            else:
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": f"❌ Error: {result['error']}"
-                })
-        
-        # Rerun to display new messages
-        st.rerun()
+
+        # Use streaming for V2 API, fallback to regular for V1
+        if st.session_state.api_version == "v2":
+            # Streaming response for V2
+            with st.chat_message("assistant"):
+                response = st.write_stream(
+                    stream_message(
+                        conversation_id=str(st.session_state.conversation_id),
+                        message=user_input,
+                    )
+                )
+
+            st.session_state.messages.append({"role": "assistant", "content": response})
+        else:
+            # Regular request for V1 (with spinner)
+            with st.spinner("🤔 Thinking..."):
+                result = send_message(
+                    conversation_id=st.session_state.conversation_id,
+                    message=user_input,
+                    api_version=st.session_state.api_version,
+                )
+
+                if result["success"]:
+                    response_data = result["data"]
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": response_data.get(
+                            "response", "No response received"
+                        ),
+                    }
+
+                    # Add sources if available
+                    if "sources" in response_data:
+                        assistant_message["sources"] = response_data["sources"]
+
+                    st.session_state.messages.append(assistant_message)
+                else:
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": f"❌ Error: {result['error']}"}
+                    )
+
+            # Rerun to display new messages (only needed for V1)
+            st.rerun()
 
 # Footer
 st.markdown("---")
