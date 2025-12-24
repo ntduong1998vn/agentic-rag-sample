@@ -55,35 +55,11 @@ def classify_question(state: QAState) -> QAState:
     """
     logger.info(f"Classifying question: {state['question'][:100]}...")
 
-    llm = get_llm()
-    prompt = CLASSIFY_PROMPT.format(question=state["question"])
-
-    response = llm.invoke([HumanMessage(content=prompt)])
-    classification = response.content.strip().lower()
-
-    logger.info(f"Classification: {classification}")
-    # Normalize classification
-    if "complex" in classification:
-        mode = "complex"
-        # Initialize complex path state
-        return {
-            **state,
-            "mode": mode,
-            "plan": [],
-            "current_step_index": 0,
-            "step_results": [],
-            "working_context": [],
-            "needs_plan_refine": False,
-            "done": False,
-            "iterations": 0,
-            "max_iterations": 2,
-        }
-    else:
-        mode = "simple"
-        return {
-            **state,
-            "mode": mode,
-        }
+    mode = "simple"
+    return {
+        **state,
+        "mode": mode,
+    }
 
 
 # =============================================================================

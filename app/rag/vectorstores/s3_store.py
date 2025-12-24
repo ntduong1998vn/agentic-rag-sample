@@ -95,8 +95,6 @@ def get_vector_store(index_name: str) -> AmazonS3Vectors:
         non_filterable_metadata_keys=[
             "_page_content",
             "filetype",
-            "filename",
-            "file_directory",
         ],
         page_content_metadata_key="_page_content",
     )
