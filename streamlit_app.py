@@ -583,6 +583,8 @@ if user_input:
                 )
 
             st.session_state.messages.append({"role": "assistant", "content": response})
+            # Rerun to display messages properly
+            st.rerun()
         else:
             # Regular request for V1 (with spinner)
             with st.spinner("🤔 Thinking..."):
@@ -611,7 +613,7 @@ if user_input:
                         {"role": "assistant", "content": f"❌ Error: {result['error']}"}
                     )
 
-            # Rerun to display new messages (only needed for V1)
+            # Rerun to display new messages
             st.rerun()
 
 # Footer
