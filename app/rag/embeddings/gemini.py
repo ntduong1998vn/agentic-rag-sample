@@ -6,12 +6,14 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from google.genai.local_tokenizer import LocalTokenizer
+from google.genai.types import CountTokensResult
 
 logger = get_logger(__name__)
 
 # Gemini embedding model configuration
-GEMINI_EMBEDDING_MODEL = "models/embedding-001"
-GEMINI_EMBEDDING_DIMENSION = 1024
+GEMINI_EMBEDDING_MODEL = "gemini-embedding-001"
+GEMINI_EMBEDDING_DIMENSION = 3072
 
 
 def get_gemini_embeddings() -> GoogleGenerativeAIEmbeddings:
@@ -28,10 +30,12 @@ def get_gemini_embeddings() -> GoogleGenerativeAIEmbeddings:
         model=GEMINI_EMBEDDING_MODEL,
         google_api_key=settings.google_api_key,
     )
-    logger.debug(
-        f"Created Gemini embeddings instance with model: {GEMINI_EMBEDDING_MODEL}"
-    )
     return embeddings
+
+
+def count_tokens(text: str) -> int:
+    tokenizer = LocalTokenizer(model_name=GEMINI_EMBEDDING_MODEL)
+    return tokenizer.count_tokens(text).total_tokens
 
 
 def get_embedding_dimension() -> int:

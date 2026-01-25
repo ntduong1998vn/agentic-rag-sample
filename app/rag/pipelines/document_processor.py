@@ -2,13 +2,13 @@
 Document processor for loading, chunking, and preparing documents for embedding.
 """
 
+from app.rag.embeddings.gemini import count_tokens
 from pathlib import Path
 from typing import List
 
 from langchain_core.documents import Document as LangchainDocument
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from unstructured.partition.auto import partition
-
 from app.core.config import settings
 from app.core.logging import get_logger
 
@@ -36,7 +36,7 @@ class DocumentProcessor:
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
-            length_function=len,
+            length_function=count_tokens,
         )
         logger.debug(
             f"Initialized DocumentProcessor with chunk_size={self.chunk_size}, overlap={self.chunk_overlap}"
