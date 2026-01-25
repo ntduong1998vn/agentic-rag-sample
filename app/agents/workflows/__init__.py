@@ -12,6 +12,10 @@ from app.agents.workflows.rag_agent import (
     run_agent,
     QAState,
 )
+from app.agents.workflows.ba_agent import (
+    create_ba_agent,
+    run_ba_agent,
+)
 
 __all__ = [
     # GitLab Agent
@@ -24,5 +28,8 @@ __all__ = [
     "run_rag_agent",
     "run_agent",
     "QAState",
+    # BA Agent
+    "create_ba_agent",
+    "run_ba_agent",
 ]
 

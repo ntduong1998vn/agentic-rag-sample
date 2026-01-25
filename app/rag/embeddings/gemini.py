@@ -7,7 +7,6 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from app.core.config import settings
 from app.core.logging import get_logger
 from google.genai.local_tokenizer import LocalTokenizer
-from google.genai.types import CountTokensResult
 
 logger = get_logger(__name__)
 
@@ -34,7 +33,7 @@ def get_gemini_embeddings() -> GoogleGenerativeAIEmbeddings:
 
 
 def count_tokens(text: str) -> int:
-    tokenizer = LocalTokenizer(model_name=GEMINI_EMBEDDING_MODEL)
+    tokenizer = LocalTokenizer(model_name="gemini-2.5-flash-lite")
     return tokenizer.count_tokens(text).total_tokens
 
 

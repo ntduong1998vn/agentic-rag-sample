@@ -2,6 +2,8 @@
 Ingestion service orchestrating the full document ingestion pipeline.
 """
 
+from app.rag.vectorstores.qdrant_store import delete_document_vectors
+from app.rag.vectorstores.qdrant_store import add_documents_to_collection
 from typing import List
 from uuid import UUID
 
@@ -12,10 +14,6 @@ from app.services.knowledge_base import KnowledgeBaseService
 from app.services.document_scanner import DocumentScanner
 from app.services.document import DocumentService, DocumentStatus
 from app.rag.pipelines.document_processor import DocumentProcessor
-from app.rag.vectorstores.s3_store import (
-    add_documents_to_index,
-    delete_document_vectors,
-)
 
 logger = get_logger(__name__)
 
@@ -166,7 +164,9 @@ class IngestionService:
                 return True
 
             # Add chunks to S3 Vectors
-            chunks_added = add_documents_to_index(collection_name, chunks, document.id)
+            chunks_added = add_documents_to_collection(
+                collection_name, chunks, document.id
+            )
 
             # Update document status to complete
             self.document_service.update_status(

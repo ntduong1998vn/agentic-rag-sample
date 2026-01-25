@@ -1,3 +1,4 @@
+from app.rag.vectorstores.qdrant_store import get_vector_store
 from uuid import UUID
 from typing import Optional, List
 from langchain_core.documents import Document
@@ -6,7 +7,6 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.services.document import DocumentService
-from app.rag.vectorstores.s3_store import get_vector_store, get_adjacent_chunks
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -69,45 +69,38 @@ def _retrieve_and_expand_chunks(
         )
     )
 
-    # Parent Document Retriever: collect unique (document_id, chunk_index) pairs
-    seen_chunks = set()  # (document_id, chunk_index)
-    all_chunks = []
+    # Since adjacent_count is 0, just use the docs directly
+    if adjacent_count == 0:
+        all_chunks = docs
+    else:
+        # Parent Document Retriever: collect unique (document_id, chunk_index) pairs
+        seen_chunks = set()  # (document_id, chunk_index)
+        all_chunks = []
 
-    for doc in docs:
-        doc_id = doc.metadata.get("document_id")
-        chunk_index = doc.metadata.get("chunk_index")
+        for doc in docs:
+            doc_id = doc.metadata.get("document_id")
+            chunk_index = doc.metadata.get("chunk_index")
 
-        if doc_id and chunk_index is not None:
-            # Get adjacent chunks for this document
-            adjacent_chunks = get_adjacent_chunks(
-                index_name=collection_name,
-                document_id=doc_id,
-                center_chunk_index=chunk_index,
-                adjacent_count=adjacent_count,
-            )
-
-            for adj_chunk in adjacent_chunks:
-                adj_doc_id = adj_chunk.metadata.get("document_id")
-                adj_chunk_idx = adj_chunk.metadata.get("chunk_index")
-                key = (adj_doc_id, adj_chunk_idx)
-
+            if doc_id and chunk_index is not None:
+                # Without get_adjacent_chunks, just add the original doc
+                key = (doc_id, chunk_index)
                 if key not in seen_chunks:
                     seen_chunks.add(key)
-                    all_chunks.append(adj_chunk)
-        else:
-            # Fallback: no chunk_index metadata, use original doc
-            all_chunks.append(doc)
+                    all_chunks.append(doc)
+            else:
+                # Fallback: no chunk_index metadata, use original doc
+                all_chunks.append(doc)
 
-    # Sort by document_id, then by chunk_index for reading order
-    all_chunks.sort(
-        key=lambda x: (
-            x.metadata.get("document_id", ""),
-            x.metadata.get("chunk_index", 0),
+        # Sort by document_id, then by chunk_index for reading order
+        all_chunks.sort(
+            key=lambda x: (
+                x.metadata.get("document_id", ""),
+                x.metadata.get("chunk_index", 0),
+            )
         )
-    )
 
     # Log metadata of all found chunks
-    logger.info(f"Found {len(all_chunks)} chunks (after expansion) for query='{query}'")
+    logger.info(f"Found {len(all_chunks)} chunks for query='{query}'")
 
     return all_chunks
 
@@ -121,41 +114,41 @@ def create_unified_search_tool(
     Create a unified search tool that can search both:
     1. The entire knowledge base (when document_name is not provided)
     2. Within a specific document (when document_name is provided)
-    
+
     This tool merges the functionality of:
     - search_knowledge_base (rag_tool.py)
     - search_document_content (document_search_tool.py)
-    
+
     Args:
         collection_name: The vector store collection name.
         chatbot_id: The chatbot ID to find documents for.
         conversation_id: Optional conversation ID for conversation-specific documents.
-    
+
     Returns:
         A LangChain tool for unified search.
     """
-    
+
     @tool
     def search_knowledge_base(query: str, document_name: Optional[str] = None) -> str:
         """
         Search the chatbot's knowledge base for relevant information.
-        
+
         This tool can perform two types of searches:
         1. General search: When document_name is not provided, search across all documents.
         2. Document-specific search: When document_name is provided, search only within that document.
-        
+
         Args:
             query: The search query to find relevant content.
             document_name: Optional. The name or partial name of a specific document to search in.
                           If not provided, searches the entire knowledge base.
-        
+
         Returns:
             Relevant document content, or a message if nothing is found.
         """
         try:
             document_id_filter = None
             found_document_name = None
-            
+
             # If document_name is provided, find its document_id
             if document_name:
                 db: Session = SessionLocal()
@@ -166,7 +159,7 @@ def create_unified_search_tool(
                         document_name=document_name,
                         conversation_id=conversation_id,
                     )
-                    
+
                     if result:
                         document_id, found_document_name = result
                         document_id_filter = str(document_id)
@@ -174,41 +167,42 @@ def create_unified_search_tool(
                         return f"Không tìm thấy tài liệu '{document_name}' hoặc tài liệu chưa được xử lý hoàn tất."
                 finally:
                     db.close()
-            
+
             # Retrieve and expand chunks
             all_chunks = _retrieve_and_expand_chunks(
                 collection_name=collection_name,
                 query=query,
                 document_id_filter=document_id_filter,
-                k=6,
-                adjacent_count=3,
+                k=10,
+                adjacent_count=0,
             )
-            
+
             # Handle no results
             if not all_chunks:
                 if document_name:
                     return f"Không tìm thấy thông tin liên quan đến '{query}' trong tài liệu '{found_document_name}' với độ chính xác cao (score > 0.7)."
                 else:
                     return "No relevant documents found in the knowledge base with high accuracy (score > 0.7)."
-            
-            # Format results
+
+            # Format results with clear citations
             results = []
-            
-            if document_name:
-                # Document-specific search: Vietnamese format
-                results.append(f"Kết quả tìm kiếm trong tài liệu '{found_document_name}':\n")
-                for doc in all_chunks:
-                    results.append(
-                        f"Metadata: {doc.metadata}\nContent:{doc.page_content}"
-                    )
-            else:
-                # General search: English format
-                for doc in all_chunks:
-                    results.append(
-                        f"Metadata: {doc.metadata}\nContent:{doc.page_content}"
-                    )
-            
-            return "\n\n---\n\n".join(results)
+
+            for i, doc in enumerate(all_chunks, 1):
+                source = doc.metadata.get("source", "Unknown")
+                chunk_idx = doc.metadata.get("chunk_index", "?")
+
+                # Create citation reference
+                citation = f"[Source {i}] {source} (chunk {chunk_idx})"
+
+                results.append(f"{citation}\n---\n{doc.page_content}")
+
+            # Add citation summary at the end
+            citation_summary = "\n\n## References\n"
+            for i, doc in enumerate(all_chunks, 1):
+                source = doc.metadata.get("source", "Unknown")
+                citation_summary += f"- [Source {i}]: {source}\n"
+
+            return "\n\n".join(results) + citation_summary
             
         except Exception as e:
             logger.error(f"Error searching knowledge base: {e}")

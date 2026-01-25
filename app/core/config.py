@@ -17,7 +17,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
-        extra='ignore',
+        extra="ignore",
     )
 
     # API Keys
@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     postgres_db: str = Field("agentic_rag", description="PostgreSQL database name")
     postgres_user: str = Field("agentic_rag", description="PostgreSQL user")
     postgres_password: str = Field("agentic_rag_123", description="PostgreSQL password")
-    
+
     @property
     def database_url(self) -> str:
         """Construct database URL."""
@@ -55,15 +55,27 @@ class Settings(BaseSettings):
     log_console: bool = Field(True, description="Enable console logging")
 
     # Semantic Chunking
-    semantic_breakpoint_percentile_threshold: int = Field(90, description="Breakpoint percentile threshold")
+    semantic_breakpoint_percentile_threshold: int = Field(
+        90, description="Breakpoint percentile threshold"
+    )
     semantic_buffer_size: int = Field(1, description="Buffer size")
-    semantic_max_tokens_per_chunk: int = Field(800, description="Maximum tokens per chunk")
+    semantic_max_tokens_per_chunk: int = Field(
+        800, description="Maximum tokens per chunk"
+    )
     semantic_token_overlap: int = Field(50, description="Token overlap")
 
     # GitLab
     gitlab_url: str = Field("https://gitlab.com", description="GitLab instance URL")
     gitlab_token: str = Field("", description="GitLab access token")
     gitlab_project_id: str = Field("", description="GitLab project ID")
+
+    # LangSmith Configuration
+    langsmith_tracing: bool = Field(False, description="Enable LangSmith tracing")
+    langsmith_endpoint: str = Field(
+        "https://api.smith.langchain.com", description="LangSmith API endpoint"
+    )
+    langsmith_api_key: str = Field("", description="LangSmith API key")
+    langsmith_project: str = Field("default", description="LangSmith project name")
 
 
 # Global settings instance

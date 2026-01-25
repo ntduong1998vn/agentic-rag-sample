@@ -97,6 +97,7 @@ def add_documents_to_collection(
     for doc in documents:
         doc.metadata["document_id"] = str(document_id)
 
+    ensure_collection_exists(collection_name)
     vector_store = get_vector_store(collection_name)
     vector_store.add_documents(documents, batch_size=100)
 
@@ -113,6 +114,16 @@ def delete_document_vectors(collection_name: str, document_id: UUID) -> None:
         document_id: ID of the document whose vectors should be deleted
     """
     client = get_qdrant_client()
+
+    # Check if collection exists first
+    collections = client.get_collections()
+    existing_names = [c.name for c in collections.collections]
+
+    if collection_name not in existing_names:
+        logger.debug(
+            f"Collection {collection_name} not found, skipping vector deletion for {document_id}"
+        )
+        return
 
     client.delete(
         collection_name=collection_name,

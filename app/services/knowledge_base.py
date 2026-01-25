@@ -2,6 +2,7 @@
 Knowledge base service for managing knowledge bases.
 """
 
+from app.rag.embeddings.gemini import GEMINI_EMBEDDING_DIMENSION
 from typing import Optional
 from uuid import UUID
 
@@ -11,10 +12,6 @@ from app.models.knowledge_base import KnowledgeBase
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
-
-# Gemini embedding dimension (models/embedding-001)
-GEMINI_EMBEDDING_DIMENSION = 768
-
 
 class KnowledgeBaseService:
     """Service for knowledge base operations."""

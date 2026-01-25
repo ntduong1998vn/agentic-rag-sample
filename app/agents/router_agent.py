@@ -6,37 +6,21 @@ to route questions to the appropriate agent (GitLab Agent or RAG Agent).
 Uses LangChain 1.0.0 create_agent (LangGraph-backed) pattern.
 """
 
+from app.rag.llms.gemini import get_llm
 from typing import Optional, Tuple, List, Any
 from uuid import UUID
 
-from langchain_aws.chat_models.bedrock_converse import ChatBedrockConverse
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage
 from langchain.agents import create_agent
+from langchain.agents.middleware import SummarizationMiddleware
 
-from app.core.config import settings
 from app.core.logging import get_logger
 from app.agents.workflows.gitlab_agent import create_gitlab_agent, run_gitlab_agent
 from app.agents.workflows.rag_agent import create_rag_agent, run_rag_agent
+from app.agents.workflows.ba_agent import create_ba_agent, run_ba_agent
 
 logger = get_logger(__name__)
-
-
-# =============================================================================
-# LLM CONFIGURATION
-# =============================================================================
-
-
-def get_llm(model_name: str = "amazon.nova-lite-v1:0") -> ChatBedrockConverse:
-    """Get a configured LLM instance."""
-    return ChatBedrockConverse(
-        model=model_name,
-        temperature=0,
-        max_tokens=None,
-        region_name="us-east-1",
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-    )
 
 
 # =============================================================================
@@ -59,6 +43,12 @@ SUPERVISOR_SYSTEM_PROMPT = """You are a supervisor that coordinates specialized 
 - Knowledge base (policies, guides, manuals)
 - Non-code information retrieval
 
+**ba_agent**: For business analysis and requirements
+- Analyzing raw specifications or requirements
+- Performing Impact Analysis (affected screens, APIs, DB)
+- Performing Gap Analysis (missing logic, inconsistencies)
+- Creating comprehensive BA reports
+
 ## CRITICAL RULES
 
 1. **You MUST call at least one agent tool to answer any question.** Never answer directly without calling an agent.
@@ -66,6 +56,7 @@ SUPERVISOR_SYSTEM_PROMPT = """You are a supervisor that coordinates specialized 
 2. **Decision Logic:**
    - Question about CODE only → Call gitlab_agent
    - Question about DOCUMENTS only → Call rag_agent
+   - Question about SPECIFICATIONS or BA ANALYSIS → Call ba_agent
    - Question about BOTH code AND documents → Call BOTH agents, then synthesize results
    - Unclear → Call rag_agent
 
@@ -234,6 +225,67 @@ def create_rag_agent_tool(
     return rag_agent
 
 
+def create_ba_agent_tool(
+    collection_name: str,
+    chatbot_id: UUID,
+    conversation_id: Optional[UUID] = None,
+):
+    """
+    Create a tool that wraps the BA Agent.
+
+    Args:
+        collection_name: Vector store collection name.
+        chatbot_id: Chatbot ID.
+        conversation_id: Optional conversation ID.
+
+    Returns:
+        A LangChain tool for calling BA Agent.
+    """
+    # Pre-create agent for reuse
+    _cached_agent = None
+
+    @tool
+    async def ba_agent(specification: str) -> str:
+        """
+        Query the BA Agent for requirement analysis, impact analysis, or gap analysis.
+
+        Use this tool for analyzing new features, raw specifications, or when
+        asked to perform impact/gap analysis on the system.
+
+        Args:
+            specification: The raw specification or requirement to analyze.
+
+        Returns:
+            The agent's comprehensive BA report.
+        """
+        nonlocal _cached_agent
+
+        try:
+            logger.info(f"BA Agent tool called with: {specification[:100]}...")
+
+            # Create agent if not cached
+            if _cached_agent is None:
+                _cached_agent = create_ba_agent(
+                    chatbot_id=chatbot_id,
+                    collection_name=collection_name,
+                    conversation_id=conversation_id,
+                    checkpointer=None,
+                )
+
+            final_answer, todos = await run_ba_agent(
+                agent=_cached_agent,
+                raw_spec=specification,
+            )
+
+            return final_answer
+
+        except Exception as e:
+            logger.error(f"Error in BA Agent tool: {e}")
+            return f"Error querying BA Agent: {str(e)}"
+
+    return ba_agent
+
+
 # =============================================================================
 # ROUTER AGENT CREATION
 # =============================================================================
@@ -277,6 +329,11 @@ def create_router_agent(
             chatbot_id=chatbot_id,
             conversation_id=conversation_id,
         ),
+        create_ba_agent_tool(
+            collection_name=collection_name,
+            chatbot_id=chatbot_id,
+            conversation_id=conversation_id,
+        ),
     ]
 
     # Create LLM
@@ -288,6 +345,13 @@ def create_router_agent(
         tools=tools,
         system_prompt=SUPERVISOR_SYSTEM_PROMPT,
         checkpointer=checkpointer,
+        middleware=[
+            SummarizationMiddleware(
+                model=get_llm(),
+                trigger=("tokens", 4000),
+                keep=("messages", 20),
+            )
+        ],
     )
 
     return agent
@@ -353,6 +417,9 @@ async def run_router_agent(
                             break
                         elif "rag" in tool_name.lower():
                             selected_agent = "rag"
+                            break
+                        elif "ba" in tool_name.lower():
+                            selected_agent = "ba"
                             break
                     if selected_agent != "unknown":
                         break
@@ -443,6 +510,8 @@ async def stream_router_agent(
                     selected_agent = "gitlab"
                 elif "rag" in tool_name.lower():
                     selected_agent = "rag"
+                elif "ba" in tool_name.lower():
+                    selected_agent = "ba"
 
                 yield {"type": "tool_start", "content": f"🔧 Calling {tool_name}..."}
 
@@ -470,4 +539,5 @@ __all__ = [
     "stream_router_agent",
     "create_gitlab_agent_tool",
     "create_rag_agent_tool",
+    "create_ba_agent_tool",
 ]
