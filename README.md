@@ -196,7 +196,7 @@ curl -X POST "http://localhost:8000/chatbots" \
     "name": "Support Bot",
     "description": "Customer support assistant",
     "system_prompt": "You are a helpful customer support agent.",
-    "model": "gemini-2.5-flash-lite",
+    "model": "gemini-2.5-flash-preview-09-2025",
     "temperature": 0.7,
     "qdrant_collection": "my_docs"
   }'

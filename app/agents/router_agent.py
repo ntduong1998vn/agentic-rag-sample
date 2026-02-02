@@ -19,6 +19,7 @@ from app.core.logging import get_logger
 from app.agents.workflows.gitlab_agent import create_gitlab_agent, run_gitlab_agent
 from app.agents.workflows.rag_agent import create_rag_agent, run_rag_agent
 from app.agents.workflows.ba_agent import create_ba_agent, run_ba_agent
+from app.agents.workflows.qc_agent import create_qc_agent, run_qc_agent
 
 logger = get_logger(__name__)
 
@@ -49,6 +50,16 @@ SUPERVISOR_SYSTEM_PROMPT = """You are a supervisor that coordinates specialized 
 - Performing Gap Analysis (missing logic, inconsistencies)
 - Creating comprehensive BA reports
 
+**qc_agent**: For generating manual unit test cases
+- Creates tabular test case documentation for QA testers
+- Applies multiple testing points of view (POVs)
+- Requires detailed specifications to work effectively
+
+**load_skill**: Load specialized supervisor skills
+- Available skills:
+  - test_request_evaluation_skill: Evaluate test case request completeness
+- Use when you need evaluation criteria or decision logic
+
 ## CRITICAL RULES
 
 1. **You MUST call at least one agent tool to answer any question.** Never answer directly without calling an agent.
@@ -57,6 +68,7 @@ SUPERVISOR_SYSTEM_PROMPT = """You are a supervisor that coordinates specialized 
    - Question about CODE only → Call gitlab_agent
    - Question about DOCUMENTS only → Call rag_agent
    - Question about SPECIFICATIONS or BA ANALYSIS → Call ba_agent
+   - Question about UNIT TESTS → **Special workflow** (see below)
    - Question about BOTH code AND documents → Call BOTH agents, then synthesize results
    - Unclear → Call rag_agent
 
@@ -64,11 +76,57 @@ SUPERVISOR_SYSTEM_PROMPT = """You are a supervisor that coordinates specialized 
    - Replace pronouns ("it", "this", "that") with actual entities
    - Include necessary context from previous messages
 
+## SPECIAL WORKFLOW: Unit Test Requests
+
+When user requests to **write unit tests** or **create test cases**:
+
+### Step 1: Load Evaluation Skill
+```
+load_skill("test_request_evaluation_skill")
+```
+This loads criteria for evaluating specification completeness.
+
+### Step 2: Evaluate Specification Completeness
+
+Check if user's input contains these **5 criteria**:
+1. Feature/module name clearly stated?
+2. Acceptance criteria or expected behaviors?
+3. Input/output specifications?
+4. Business rules or constraints?
+5. Edge cases or error scenarios?
+
+### Step 3: Route Based on Completeness
+
+**IF 2 or more criteria are MISSING:**
+→ First call `ba_agent(specification=user_input)`
+→ Then call `qc_agent(specification=ba_agent_output)`
+→ Explain to user: "The specification needs more detail. Let me analyze requirements first."
+
+**IF 3 or more criteria are PRESENT:**
+→ Call `qc_agent(specification=user_input)` directly
+
+### Step 4: Return Test Cases
+Return the QC agent's test case table to the user.
+
 ## Examples
 
 **Single Agent:**
 - User: "How is authentication implemented?" → Call gitlab_agent("How is authentication implemented in the codebase?")
 - User: "What's our security policy?" → Call rag_agent("What is the security policy document?")
+- User: "Analyze the login feature requirements" → Call ba_agent("Analyze login feature requirements")
+
+**Unit Test Request (Complete Spec):**
+- User: "Write unit tests for password reset. Users enter email, system validates, sends reset link that expires in 24h. Test valid/invalid emails and expired links."
+  → load_skill("test_request_evaluation_skill")
+  → Evaluate: All 5 criteria present ✓
+  → Call qc_agent(specification=user_input)
+
+**Unit Test Request (Incomplete Spec):**
+- User: "Write unit tests for password reset feature"
+  → load_skill("test_request_evaluation_skill")
+  → Evaluate: Only feature name present, missing 4 criteria ✗
+  → Call ba_agent("Analyze password reset feature requirements")
+  → Call qc_agent(specification=ba_result)
 
 **Multiple Agents:**
 - User: "Compare the login code with our security guidelines"
@@ -84,6 +142,7 @@ SUPERVISOR_SYSTEM_PROMPT = """You are a supervisor that coordinates specialized 
 
 - If you called ONE agent: Return its response directly
 - If you called MULTIPLE agents: Combine results into a coherent answer that addresses all aspects of the question
+- For unit test requests: Return the test case table with brief introduction
 """
 
 
@@ -286,6 +345,120 @@ def create_ba_agent_tool(
     return ba_agent
 
 
+def create_qc_agent_tool(
+    collection_name: str,
+    chatbot_id: UUID,
+    conversation_id: Optional[UUID] = None,
+):
+    """
+    Create a tool that wraps the QC Agent.
+
+    Args:
+        collection_name: Vector store collection name.
+        chatbot_id: Chatbot ID.
+        conversation_id: Optional conversation ID.
+
+    Returns:
+        A LangChain tool for calling QC Agent.
+    """
+    # Pre-create agent for reuse
+    _cached_agent = None
+
+    @tool
+    async def qc_agent(specification: str) -> str:
+        """
+        Query the QC Agent to generate manual unit test cases.
+
+        Use this tool when the user asks to write unit tests, create test cases,
+        or generate test scenarios. The agent will create comprehensive test case
+        tables for QA testers.
+
+        Args:
+            specification: Detailed feature specification for generating test cases.
+
+        Returns:
+            Manual test cases in tabular markdown format.
+        """
+        nonlocal _cached_agent
+
+        try:
+            logger.info(f"QC Agent tool called with: {specification[:100]}...")
+
+            # Create agent if not cached
+            if _cached_agent is None:
+                _cached_agent = create_qc_agent(
+                    chatbot_id=chatbot_id,
+                    collection_name=collection_name,
+                    conversation_id=conversation_id,
+                    checkpointer=None,
+                )
+
+            test_cases, todos = await run_qc_agent(
+                agent=_cached_agent,
+                specification=specification,
+            )
+
+            return test_cases
+
+        except Exception as e:
+            logger.error(f"Error in QC Agent tool: {e}")
+            return f"Error generating test cases: {str(e)}"
+
+    return qc_agent
+
+
+def create_load_skill_tool():
+    """
+    Create a generic tool to load supervisor skills by name.
+
+    Follows LangChain skills pattern for progressive prompt disclosure.
+    Skills are stored in app/agents/skills/ directory.
+
+    Returns:
+        A LangChain tool for loading skills.
+    """
+    from pathlib import Path
+
+    @tool
+    def load_skill(skill_name: str) -> str:
+        """
+        Load a specialized skill prompt for the supervisor agent.
+
+        Available skills:
+        - test_request_evaluation_skill: Evaluate test case request completeness
+
+        Args:
+            skill_name: Name of the skill to load (without .md extension)
+
+        Returns:
+            The skill's prompt and context.
+
+        Example:
+            load_skill("test_request_evaluation_skill")
+        """
+        try:
+            # Construct skill file path
+            skills_dir = Path("app/agents/skills")
+            skill_file = skills_dir / f"{skill_name}.md"
+
+            if not skill_file.exists():
+                # List available skills
+                available = [f.stem for f in skills_dir.glob("*.md")]
+                return f"Error: Skill '{skill_name}' not found. Available skills: {', '.join(available)}"
+
+            # Load skill content
+            with open(skill_file, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            return f"# Skill Loaded: {skill_name}\n\n{content}"
+
+        except Exception as e:
+            logger.error(f"Error loading skill '{skill_name}': {e}")
+            return f"Error loading skill: {str(e)}"
+
+    return load_skill
+
+
 # =============================================================================
 # ROUTER AGENT CREATION
 # =============================================================================
@@ -334,6 +507,12 @@ def create_router_agent(
             chatbot_id=chatbot_id,
             conversation_id=conversation_id,
         ),
+        create_qc_agent_tool(
+            collection_name=collection_name,
+            chatbot_id=chatbot_id,
+            conversation_id=conversation_id,
+        ),
+        create_load_skill_tool(),
     ]
 
     # Create LLM
@@ -420,6 +599,9 @@ async def run_router_agent(
                             break
                         elif "ba" in tool_name.lower():
                             selected_agent = "ba"
+                            break
+                        elif "qc" in tool_name.lower():
+                            selected_agent = "qc"
                             break
                     if selected_agent != "unknown":
                         break
@@ -512,6 +694,8 @@ async def stream_router_agent(
                     selected_agent = "rag"
                 elif "ba" in tool_name.lower():
                     selected_agent = "ba"
+                elif "qc" in tool_name.lower():
+                    selected_agent = "qc"
 
                 yield {"type": "tool_start", "content": f"🔧 Calling {tool_name}..."}
 
@@ -540,4 +724,6 @@ __all__ = [
     "create_gitlab_agent_tool",
     "create_rag_agent_tool",
     "create_ba_agent_tool",
+    "create_qc_agent_tool",
+    "create_load_skill_tool",
 ]
