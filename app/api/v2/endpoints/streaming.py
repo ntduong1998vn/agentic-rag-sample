@@ -1,8 +1,8 @@
 """
 V2 Streaming chat API endpoint.
 
-Uses Server-Sent Events (SSE) to stream responses from the Router Agent.
-The streaming is done at the Router Agent level using astream_events.
+Uses Server-Sent Events (SSE) to stream responses from the Supervisor Agent.
+Supports token streaming, tool call events, and interrupt (clarification) events.
 """
 
 from uuid import UUID
@@ -42,6 +42,7 @@ async def chat_stream(
     - token: A token from the LLM response
     - tool_start: A tool call has started (e.g., calling rag_agent)
     - tool_end: A tool call has completed
+    - interrupt: A clarification question for the user (graph paused)
     - done: Stream completed successfully
     - error: An error occurred
     """
@@ -93,7 +94,10 @@ async def chat_stream(
                     # Accumulate response for saving
                     if event["type"] == "token":
                         full_response += event["content"]
-                    
+                    elif event["type"] == "interrupt":
+                        # Clarification question — save as AI message
+                        full_response += event["content"]
+
                     # Yield SSE formatted event
                     yield f"data: {json.dumps(event)}\n\n"
             

@@ -9,5 +9,5 @@ def get_llm():
         temperature=0,
         api_key=settings.google_api_key,
         # thinking_level="medium",
-        include_thoughts=True,
+        # include_thoughts=True,
     )
