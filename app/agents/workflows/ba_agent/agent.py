@@ -37,7 +37,7 @@ def create_ba_agent(
         tools=[search_tool],
         system_prompt=BA_SYSTEM_PROMPT,
         middleware=[
-            TodoListMiddleware(),  # Injects write_todos tool and task tracking
+            # TodoListMiddleware(),  # Injects write_todos tool and task tracking
             SummarizationMiddleware(
                 model=llm,
                 trigger=("tokens", 4000),

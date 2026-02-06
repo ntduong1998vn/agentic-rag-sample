@@ -125,7 +125,7 @@ def create_qc_agent(
             # FilesystemFileSearchMiddleware(
             #     root_path=skills_base_path
             # ),  # Provides Glob and Grep tools
-            TodoListMiddleware(),  # Provides write_todos tool
+            # TodoListMiddleware(),  # Provides write_todos tool
             # SummarizationMiddleware(
             #     model=llm,
             #     trigger=("tokens", 4000),

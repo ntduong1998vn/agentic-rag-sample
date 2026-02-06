@@ -4,14 +4,12 @@ Node functions for the Supervisor (Router) Agent StateGraph.
 Nodes:
 - maybe_summarize: Summarize conversation history if too long
 - rewrite_query: Resolve pronouns and make question self-contained
-- supervisor_decide: Central brain — decide next action (with interrupt support)
+- supervisor_decide: Central brain — decide next action
 - execute_agent: Call a sub-agent and store result
 - synthesize_and_respond: Format final answer from agent results
 """
 
-from langchain_core.messages import HumanMessage, AIMessage
-
-from langgraph.types import interrupt
+from langchain_core.messages import HumanMessage
 
 from app.core.logging import get_logger
 from app.rag.llms.gemini import get_llm
@@ -129,13 +127,6 @@ async def supervisor_decide(state: SupervisorState) -> dict:
     Possible outcomes:
     - EXECUTE_AGENT: Call a sub-agent → routes to execute_agent node
     - RESPOND: Enough info to answer → routes to synthesize_and_respond
-    - ASK_HUMAN: Need clarification → interrupt() pauses the graph
-
-    When interrupt() is called, the graph pauses and the user sees the question.
-    On resume, this node re-executes from the start with the user's answer
-    available as the return value of interrupt().
-
-    Note: Code before interrupt() must be idempotent since it re-runs on resume.
     """
     iteration = state.get("iteration", 0)
     max_iterations = state.get("max_iterations", 5)
@@ -191,36 +182,20 @@ async def supervisor_decide(state: SupervisorState) -> dict:
         f"reasoning={decision.reasoning[:100]}"
     )
 
-    if decision.action == SupervisorAction.ASK_HUMAN:
-        # INTERRUPT: pause graph and ask user for clarification
-        question_text = (
-            decision.clarification_question
-            or "Could you provide more details about your request?"
-        )
+    if decision.action == SupervisorAction.EXECUTE_AGENT:
+        agent_input = decision.agent_input or rewritten_question
 
-        user_response = interrupt({
-            "type": "clarification",
-            "question": question_text,
-        })
+        # When routing to QC after BA, pass the full BA result + user query
+        # instead of the LLM's summarized agent_input.
+        if decision.target_agent == "qc" and "ba" in agent_results:
+            agent_input = (
+                f"## User request\n{rewritten_question}\n\n"
+                f"## Specification from BA agent\n{agent_results['ba']}"
+            )
 
-        # Graph resumes here with user's answer as user_response
-        logger.info(f"Resumed from interrupt with: {str(user_response)[:100]}")
-
-        return {
-            "question": str(user_response),
-            "rewritten_question": str(user_response),
-            "iteration": iteration + 1,
-            "next_action": "re_decide",
-            "messages": [
-                AIMessage(content=question_text),
-                HumanMessage(content=str(user_response)),
-            ],
-        }
-
-    elif decision.action == SupervisorAction.EXECUTE_AGENT:
         return {
             "target_agent": decision.target_agent,
-            "agent_input": decision.agent_input or rewritten_question,
+            "agent_input": agent_input,
             "iteration": iteration + 1,
             "next_action": "execute",
         }

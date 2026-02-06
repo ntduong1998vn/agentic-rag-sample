@@ -5,15 +5,15 @@ Builds the LangGraph workflow:
   maybe_summarize → rewrite_query → supervisor_decide ←──────────┐
                                          │                       │
                       ┌─────────────────┤──────────┐            │
-                      ▼                 ▼          ▼            │
-                execute_agent       respond   [interrupt()]     │
-                      │                ▼                        │
-                      │               END                       │
+                      ▼                 ▼                        │
+                execute_agent       respond                      │
+                      │                ▼                         │
+                      │               END                        │
                       └─────────────────────────────────────────┘
 
 Provides:
 - create_router_agent(): Build and compile the StateGraph
-- run_router_agent(): Single-shot invocation with interrupt handling
+- run_router_agent(): Single-shot invocation
 - stream_router_agent(): Streaming invocation with SSE-friendly events
 """
 
@@ -22,7 +22,6 @@ from typing import Optional, Tuple, List, Any
 
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, END
-from langgraph.types import Command
 
 from app.core.logging import get_logger
 from app.agents.router.state import SupervisorState
@@ -48,8 +47,6 @@ def route_after_supervisor(state: SupervisorState) -> str:
     action = state.get("next_action", "respond")
     if action == "execute":
         return "execute_agent"
-    elif action == "re_decide":
-        return "supervisor_decide"  # Loop back after interrupt resume
     return "synthesize_and_respond"
 
 
@@ -69,15 +66,14 @@ def create_router_agent(
     Create a Supervisor Agent using LangGraph StateGraph.
 
     The supervisor evaluates each request, decides which sub-agent(s) to call,
-    and loops until it has enough information to respond. Supports human-in-the-loop
-    via LangGraph interrupt() for clarification questions.
+    and loops until it has enough information to respond.
 
     Args:
         collection_name: Default vector store collection name.
         chatbot_id: Optional chatbot ID for document lookups.
         conversation_id: Optional conversation ID.
         gitlab_collection_name: Collection for GitLab agent (defaults to collection_name).
-        checkpointer: LangGraph checkpointer for state persistence (required for interrupt).
+        checkpointer: LangGraph checkpointer for state persistence.
 
     Returns:
         Compiled LangGraph agent.
@@ -118,7 +114,6 @@ def create_router_agent(
         route_after_supervisor,
         {
             "execute_agent": "execute_agent",
-            "supervisor_decide": "supervisor_decide",
             "synthesize_and_respond": "synthesize_and_respond",
         },
     )
@@ -129,14 +124,14 @@ def create_router_agent(
     # Synthesize → END
     graph.add_edge("synthesize_and_respond", END)
 
-    # Compile with checkpointer (required for interrupt support)
+    # Compile with checkpointer for state persistence
     compiled = graph.compile(checkpointer=checkpointer)
 
     return compiled
 
 
 # =============================================================================
-# RUN (single-shot with interrupt handling)
+# RUN (single-shot invocation)
 # =============================================================================
 
 
@@ -148,14 +143,10 @@ async def run_router_agent(
     """
     Run the Supervisor Agent with a question.
 
-    Handles both new invocations and resumptions after interrupt.
-    When the graph is paused (waiting for user clarification), calling this
-    again with the user's answer will resume the graph.
-
     Args:
         agent: The compiled supervisor agent.
-        question: User's question (or clarification answer if resuming).
-        thread_id: Thread ID for conversation tracking. Required for interrupt support.
+        question: User's question.
+        thread_id: Thread ID for conversation tracking.
 
     Returns:
         Tuple of (final_answer, selected_agents_csv, sources).
@@ -165,47 +156,17 @@ async def run_router_agent(
         config = {"configurable": {"thread_id": thread_id}}
 
     try:
-        # Check if there's a pending interrupt (user is responding to a clarification)
-        is_resuming = False
-        if thread_id and config:
-            try:
-                snapshot = await agent.aget_state(config)
-                if snapshot and snapshot.next:
-                    # Graph is paused at an interrupt — resume with user's answer
-                    is_resuming = True
-                    logger.info(f"Resuming from interrupt with: {question[:100]}...")
-            except Exception:
-                # No prior state — normal invocation
-                pass
+        initial_state = {
+            "question": question,
+            "messages": [HumanMessage(content=question)],
+            "iteration": 0,
+            "max_iterations": 5,
+            "agent_results": {},
+            "selected_agents": [],
+            "sources": [],
+        }
+        result = await agent.ainvoke(initial_state, config=config)
 
-        if is_resuming:
-            result = await agent.ainvoke(
-                Command(resume=question), config=config
-            )
-        else:
-            initial_state = {
-                "question": question,
-                "messages": [HumanMessage(content=question)],
-                "iteration": 0,
-                "max_iterations": 5,
-                "agent_results": {},
-                "selected_agents": [],
-                "sources": [],
-            }
-            result = await agent.ainvoke(initial_state, config=config)
-
-        # Check if result contains an interrupt (graph paused for clarification)
-        if hasattr(result, "__getitem__") and "__interrupt__" in result:
-            interrupt_info = result["__interrupt__"]
-            if interrupt_info:
-                interrupt_value = interrupt_info[0].value
-                clarification = interrupt_value.get(
-                    "question", "Could you provide more details?"
-                )
-                logger.info(f"Graph interrupted, asking: {clarification[:100]}")
-                return clarification, "supervisor", []
-
-        # Normal completion
         final_answer = result.get("final_answer", "")
         selected = result.get("selected_agents", [])
         selected_csv = ",".join(selected) if selected else "unknown"
@@ -224,7 +185,7 @@ async def run_router_agent(
 
 
 # =============================================================================
-# STREAM (SSE-friendly with interrupt support)
+# STREAM (SSE-friendly)
 # =============================================================================
 
 
@@ -236,20 +197,18 @@ async def stream_router_agent(
     """
     Stream responses from the Supervisor Agent.
 
-    Uses astream() with stream_mode=["messages", "updates"] instead of
-    astream_events() for reliable interrupt event handling.
+    Uses astream() with stream_mode=["messages", "updates"].
 
     Yields events:
     - {"type": "token", "content": "..."}: Token from LLM
     - {"type": "tool_start", "content": "..."}: Sub-agent call started
     - {"type": "tool_end", "content": "..."}: Sub-agent call completed
-    - {"type": "interrupt", "content": "..."}: Clarification question for user
     - {"type": "done", "content": ""}: Stream completed
     - {"type": "error", "content": "..."}: Error occurred
 
     Args:
         agent: The compiled supervisor agent.
-        question: User's question (or clarification answer if resuming).
+        question: User's question.
         thread_id: Thread ID for conversation tracking.
 
     Yields:
@@ -260,30 +219,15 @@ async def stream_router_agent(
         config = {"configurable": {"thread_id": thread_id}}
 
     try:
-        # Detect resume vs new invocation
-        input_data = None
-        is_resuming = False
-
-        if thread_id and config:
-            try:
-                snapshot = await agent.aget_state(config)
-                if snapshot and snapshot.next:
-                    is_resuming = True
-                    input_data = Command(resume=question)
-                    logger.info(f"Streaming resume from interrupt: {question[:100]}...")
-            except Exception:
-                pass
-
-        if not is_resuming:
-            input_data = {
-                "question": question,
-                "messages": [HumanMessage(content=question)],
-                "iteration": 0,
-                "max_iterations": 5,
-                "agent_results": {},
-                "selected_agents": [],
-                "sources": [],
-            }
+        input_data = {
+            "question": question,
+            "messages": [HumanMessage(content=question)],
+            "iteration": 0,
+            "max_iterations": 5,
+            "agent_results": {},
+            "selected_agents": [],
+            "sources": [],
+        }
 
         last_node = ""
         streamed_tokens = False
@@ -312,17 +256,6 @@ async def stream_router_agent(
 
             elif mode == "updates":
                 if isinstance(data, dict):
-                    # Check for interrupt
-                    if "__interrupt__" in data:
-                        interrupt_list = data["__interrupt__"]
-                        if interrupt_list:
-                            interrupt_val = interrupt_list[0].value
-                            question_text = interrupt_val.get(
-                                "question", "Could you provide more details?"
-                            )
-                            yield {"type": "interrupt", "content": question_text}
-                            return  # Stop streaming — graph is paused
-
                     # Track node transitions for tool_start / tool_end events
                     for node_name, node_output in data.items():
                         if node_name == "execute_agent":

@@ -46,14 +46,16 @@ Requires detailed specifications to work effectively.
 
 ### Test Case Workflow (HIGHEST PRIORITY — check these first)
 1. **User asks for test cases / unit tests AND "ba" is in agents called AND "qc" is NOT** \
-→ action: execute_agent, target: qc, agent_input: the BA agent's result. \
+→ action: execute_agent, target: qc. \
 **This rule is mandatory.** BA results are NOT the final answer for test case requests — \
-they MUST be forwarded to QC agent to generate actual test cases.
+they MUST be forwarded to QC agent to generate actual test cases. \
+(The full BA spec and user query will be passed to QC automatically — just set the target.)
 2. **User asks for test cases with complete spec** (has feature name + acceptance criteria + \
 input/output + business rules) AND "qc" is NOT in agents called \
 → action: execute_agent, target: qc
 3. **User asks for test cases with incomplete spec** AND "ba" is NOT in agents called \
-→ action: ask_human (ask if user can provide more details OR if you should search documents)
+→ action: execute_agent, target: ba \
+(Use BA agent to search documents and enrich the specification before generating test cases.)
 4. **"qc" is in agents called** AND the QC result contains test cases \
 → action: respond (return the QC agent's test cases)
 
@@ -62,15 +64,13 @@ input/output + business rules) AND "qc" is NOT in agents called \
 6. **Document questions / Specification / BA analysis** → action: execute_agent, target: ba
 7. **Both code AND document info needed** → call one agent first, then the other in next iteration
 8. **Enough info to answer** (agent results cover the question AND no pending workflow) → action: respond
-9. **Unclear or ambiguous request** → action: ask_human (ask for clarification)
-10. **Max iterations reached** → action: respond (synthesize best available answer)
+9. **Max iterations reached** → action: respond (synthesize best available answer)
 
 ## Important Notes
 
 - When action is execute_agent: rewrite agent_input to be self-contained (agents have NO history).
 - When action is respond: provide the final response directly in the response field. \
 If agent results are available, synthesize them into a coherent answer.
-- When action is ask_human: write a clear, helpful clarification_question in the user's language.
 - Do NOT call the same agent with the same input twice.
 - If an agent returned an error, try a different approach or respond with what you have.
 - **NEVER respond directly with BA agent output when the user asked for test cases.** \
